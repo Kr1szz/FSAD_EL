@@ -12,8 +12,8 @@
 2. Authentication, authorization, academic structure and allocations.
 3. Subject workspaces and assessment/question lifecycle.
 4. Attempts, server-side timing, autosave, evaluation and publication.
-5. CIE configuration/consolidation and reporting.
+5. Fixed 10-mark quizzes with MCQ and single-line fill-in questions.
 6. Rooms, realtime monitoring, proctoring, assignments and analytics.
 7. Deployment docs, hardening and automated verification.
 
-Academic weighting and RVCE identity policies will be configurable. Google OAuth and production email require institution-provided credentials and allowlist settings.
+Quizzes are worth 10 marks; their questions must add up to 10. Google sign-in is restricted to `rvce.edu.in` by default and requires an institution configured OAuth client ID.

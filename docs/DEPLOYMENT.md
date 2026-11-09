@@ -10,6 +10,6 @@ For local Node development, run `npm install`, then run `npm run dev` at reposit
 
 Back up MongoDB with `mongodump --uri "$MONGODB_URI" --out ./backup`; restore with `mongorestore --uri "$MONGODB_URI" ./backup`. Restrict backup access and encrypt backups at rest.
 
-Google OAuth and actual RVCE grade policy require institution-provided configuration. CIE configurations are versioned per subject; each component carries a max mark and weight. Confirm the intended scheme before production use.
+Google OAuth requires an institution configured client ID. The default allowed email domain is `rvce.edu.in`. Each quiz is fixed at 10 marks and supports MCQ or single-line fill-in questions; the selected question marks must total 10.
 
 The sample seed data uses `.invalid` identities, keeps all sample accounts inactive, and must not be treated as real RVCE users.

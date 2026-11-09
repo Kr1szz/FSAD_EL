@@ -4,9 +4,9 @@ export async function finalizeAttempt(attemptId) {
   const at=await Attempt.findOneAndUpdate({_id:attemptId,state:'IN_PROGRESS'},{$set:{state:'SUBMITTED',submittedAt:new Date()}},{new:true}).populate('assessment');
   if(!at)return Attempt.findById(attemptId);
   const questions=await Question.find({_id:{$in:at.questionOrder}});
-  const {objectiveScore,manual}=evaluateObjective(questions,at.answers,at.assessment.negativeMarking);
-  at.objectiveScore=objectiveScore;at.score=manual?undefined:objectiveScore;if(manual)at.state='EVALUATION_PENDING';await at.save();
-  if(!manual)await Grade.findOneAndUpdate({assessment:at.assessment._id,student:at.student},{$set:{attempt:at._id,rawMarks:objectiveScore,maxMarks:at.assessment.maxMarks}},{upsert:true,new:true});
+  const {objectiveScore}=evaluateObjective(questions,at.answers);
+  at.objectiveScore=objectiveScore;at.score=objectiveScore;await at.save();
+  await Grade.findOneAndUpdate({assessment:at.assessment._id,student:at.student},{$set:{attempt:at._id,rawMarks:objectiveScore,maxMarks:at.assessment.maxMarks}},{upsert:true,new:true});
   return at;
 }
 export async function submitExpiredAttempts(now=new Date()) {

@@ -20,10 +20,11 @@
 | 2026-11-09 | Notifications and settings | Persisted/socket notifications, read history, announcements and CIE scheme screen | Notification service, API, client | Lint, unit tests and build passed | `4671ec6` | Notification integration tests |
 | 2026-11-09 | Calendar and timers | Calendar screens and generated assessment/assignment/announcement events; pause-aware deadlines and server expiry finalization | Calendar UI, lifecycle service and API | Lint, unit tests and build passed | `b6a693e` | Calendar/socket integration tests |
 | 2026-11-09 | HTTP tests | Health response and unauthenticated admin guard checks | `server/test/http.test.js` | `npm run test -w server`: 10/10 passed with loopback permission | `1b102c3` | Database-backed authorization/lifecycle integration tests |
+| 2026-11-09 | Quiz scope | Restricted quizzes to 10 marks, MCQ and single-line fill-in questions; removed CIE weighting configuration | Assessment/question models, API, grading, client and docs | Pending verification | — | Google OAuth client ID must be configured |
 
 ## Current external dependencies and limits
 
 - Google OAuth requires institution-owned client credentials and the approved RVCE domain/allowlist.
-- Academic rules remain configurable; institutional CIE policy values must be supplied before production use.
+- Google OAuth needs a configured client ID. The default approved email domain is `rvce.edu.in`.
 - The configured GitHub remote could not be pushed because automatic review rejected exporting this repository to the unverified destination. No push was attempted after the rejection.
 - The Docker Compose configuration validates and MongoDB runs locally. Building the Node application images fails inside Docker at npm installation with `Exit handler never called`; host lint/tests/build and API runtime checks pass.

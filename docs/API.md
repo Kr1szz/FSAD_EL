@@ -12,7 +12,6 @@ Base URL: `/api`. JSON responses use `{ "ok": true, "data": ... }`; failures use
 - Assessments: `GET|POST /assessments`, `POST /assessments/:id/publish|pause|resume|end`, `GET /assessments/:id/attempts`, `POST /assessments/:id/start`
 - Attempts: `GET /attempts/:id`, `PATCH /attempts/:id/answers`, `POST /attempts/:id/proctoring-events|extend|evaluate|submit`
 - Grades: `GET /grades/student`, `GET /grades/assessment/:id`, `POST /grades/:id/publish|review`, `PATCH /grade-reviews/:id`
-- CIE: `GET|POST /cie/configurations`, `GET /cie/consolidation/:subjectId`, `GET /cie/reports/:subjectId`
 - Rooms: `POST /rooms`, `POST /rooms/join`
 - Assignments: `GET|POST /assignments`, `POST /assignments/:id/submit` (authenticated, up to 20 MB with assignment-level MIME and size limits), `GET /assignments/:id/submissions`, `GET /assignments/submissions/:submissionId/download`, `PATCH /assignments/:id/submissions/:submissionId/evaluate`
 - Assessment templates: `GET|POST /assessment-templates`, `DELETE /assessment-templates/:id`
@@ -21,3 +20,5 @@ Base URL: `/api`. JSON responses use `{ "ok": true, "data": ... }`; failures use
 Socket.IO authenticates with the session cookie. Supported controls include `room:join`, `room:start`, `room:pause`, and `room:end`; all room actions are checked against the persisted room and teacher assignment.
 
 All production API endpoints require valid identities provisioned in MongoDB. There is no public account registration or frontend role assignment.
+
+Quiz assessments are fixed at 10 marks. Question types are one-correct-answer MCQ and single-line fill-in; the server validates the question total and scores fill-in answers case-insensitively after trimming whitespace.

@@ -13,7 +13,7 @@ try {
     await Promise.all(teachers.map((teacher,index)=>TeacherAssignment.findOneAndUpdate({teacher:teacher._id,subject:subject._id,role:index===0?'coordinator':'primary'},{$set:{active:true,assignedAt:new Date()}},{upsert:true})));
     const q1=await Question.findOneAndUpdate({subject:subject._id,text:'Which data structure uses first-in, first-out order?'},{$set:{creator:teachers[0]._id,type:'single',topic:'Foundations',difficulty:'easy',marks:5,negativeMarks:0,options:[{key:'A',text:'Queue'},{key:'B',text:'Stack'},{key:'C',text:'Tree'}],correctAnswer:'A'}},{upsert:true,new:true});
     const q2=await Question.findOneAndUpdate({subject:subject._id,text:'Which structure supports key-value lookup?'},{$set:{creator:teachers[0]._id,type:'single',topic:'Foundations',difficulty:'easy',marks:5,negativeMarks:0,options:[{key:'A',text:'Hash map'},{key:'B',text:'Queue'},{key:'C',text:'Stack'}],correctAnswer:'A'}},{upsert:true,new:true});
-    await Assessment.findOneAndUpdate({subject:subject._id,title:`${code} sample practice`},{$set:{creator:teachers[0]._id,category:'Quiz',state:'DRAFT',questionIds:[q1._id,q2._id],maxMarks:10,passingMarks:4,durationMinutes:20,availabilityMode:'scheduled',attemptsAllowed:1}},{upsert:true,new:true});
+    await Assessment.findOneAndUpdate({subject:subject._id,title:`${code} sample practice`},{$set:{creator:teachers[0]._id,category:'Quiz',state:'DRAFT',questionIds:[q1._id,q2._id],maxMarks:10,durationMinutes:20,availabilityMode:'scheduled',attemptsAllowed:1}},{upsert:true,new:true});
   }
   console.log(`Seeded ${users.length} disabled example identities, ${specs.length} subjects and sample question/assessment data. Provision verified identities securely before use.`);
 } finally { await db.close(); }
