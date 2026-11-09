@@ -6,7 +6,7 @@ Base URL: `/api`. JSON responses use `{ "ok": true, "data": ... }`; failures use
 
 - `GET /health`
 - `POST /auth/google`, `POST /auth/logout`, `GET /auth/me`
-- Admin: `GET /admin/dashboard`, `GET|POST /admin/users`, `PATCH /admin/users/:id`, `GET|POST /admin/departments`, `GET|POST /admin/academic-years`, `GET|POST /admin/semesters`, `GET|POST /admin/sections`, `POST /admin/subjects`, `PATCH /admin/subjects/:id/allocations`, `GET /admin/audit-logs`, `GET /admin/reports/grades.csv`
+- Admin: `GET /admin/dashboard`, `GET|POST /admin/users`, `PATCH /admin/users/:id`, `POST /admin/users/import/preview`, `POST /admin/users/import`, `GET|POST /admin/departments`, `GET|POST /admin/academic-years`, `GET|POST /admin/semesters`, `GET|POST /admin/sections`, `POST /admin/subjects`, `PATCH /admin/subjects/:id/allocations`, `GET /admin/audit-logs`, `GET /admin/reports/grades.csv`
 - Subjects: `GET /subjects`, `GET /subjects/:id/students`
 - Questions: `GET|POST /questions`
 - Assessments: `GET|POST /assessments`, `POST /assessments/:id/publish|pause|resume|end`, `GET /assessments/:id/attempts`, `POST /assessments/:id/start`

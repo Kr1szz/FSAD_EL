@@ -1,0 +1,3 @@
+name,email,role,departmentCode,usn,semester,section
+Student Example,student@example.invalid,student,CSE,1RV26CS001,3,A
+Teacher Example,teacher@example.invalid,teacher,CSE,,,
