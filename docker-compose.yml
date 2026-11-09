@@ -1,0 +1,22 @@
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    volumes: [mongo_data:/data/db]
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  server:
+    build: { context: ., dockerfile: Dockerfile.server }
+    env_file: .env
+    environment: { MONGODB_URI: mongodb://mongo:27017/rvce_academic_hub }
+    ports: ["4000:4000"]
+    depends_on: { mongo: { condition: service_healthy } }
+  client:
+    build: { context: ., dockerfile: Dockerfile.client }
+    ports: ["5173:80"]
+    depends_on: [server]
+volumes:
+  mongo_data:
