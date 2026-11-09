@@ -1,0 +1,9 @@
+{
+  "name": "rvce-academic-hub",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": ["client", "server"],
+  "scripts": {"dev": "concurrently \"npm run dev -w server\" \"npm run dev -w client\"", "build": "npm run build -w client", "lint": "npm run lint -w client && npm run lint -w server", "test": "npm run test -w server"},
+  "devDependencies": {"concurrently": "^9.1.2"}
+}
