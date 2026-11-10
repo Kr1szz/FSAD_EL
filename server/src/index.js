@@ -10,12 +10,10 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
 import { Server } from 'socket.io';
-import jwt from 'jsonwebtoken';
 import { connectDB } from './config/db.js';
 import api from './routes/api.js';
 import { submitExpiredAttempts } from './services/attempts.js';
-import { User, Room, Assessment } from './models/index.js';
-import { transitionAssessment } from './services/assessment-lifecycle.js';
+import { registerSocketHandlers } from './realtime/socket.js';
 const app = express();
 const origin = (process.env.CLIENT_ORIGIN || 'http://localhost:5173').split(',');
 app.disable('x-powered-by');
@@ -38,126 +36,33 @@ app.get('/api/health', (_req, res) =>
 app.use('/api', api);
 app.use((err, _req, res, _next) => {
   if (err?.name === 'MulterError')
-    return res
-      .status(400)
-      .json({
-        ok: false,
-        error: err.code === 'LIMIT_FILE_SIZE' ? 'File exceeds the configured upload limit' : 'Invalid upload',
-      });
+    return res.status(400).json({
+      ok: false,
+      error: err.code === 'LIMIT_FILE_SIZE' ? 'File exceeds the configured upload limit' : 'Invalid upload',
+    });
   if (err?.name === 'ZodError')
-    return res
-      .status(400)
-      .json({
-        ok: false,
-        error: 'Validation failed',
-        details: err.issues.map((x) => ({ path: x.path.join('.'), message: x.message })),
-      });
+    return res.status(400).json({
+      ok: false,
+      error: 'Validation failed',
+      details: err.issues.map((x) => ({ path: x.path.join('.'), message: x.message })),
+    });
   if (err?.code === 11000)
     return res.status(409).json({ ok: false, error: 'A record with this unique value already exists' });
   const status = err.status || 500;
-  res
-    .status(status)
-    .json({
-      ok: false,
-      error:
-        status === 500
-          ? process.env.NODE_ENV === 'production'
-            ? 'Internal server error'
-            : err.message
-          : err.message,
-    });
+  res.status(status).json({
+    ok: false,
+    error:
+      status === 500
+        ? process.env.NODE_ENV === 'production'
+          ? 'Internal server error'
+          : err.message
+        : err.message,
+  });
 });
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin, credentials: true } });
 app.set('io', io);
-io.use(async (socket, next) => {
-  try {
-    const token =
-      socket.handshake.auth?.token ||
-      socket.handshake.headers.cookie
-        ?.split('; ')
-        .find((c) => c.startsWith('accessToken='))
-        ?.slice(12);
-    if (!token) throw new Error('Authentication required');
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findById(payload.sub);
-    if (!user || !user.isActive || user.approvalStatus !== 'approved') throw new Error('Account unavailable');
-    socket.user = user;
-    next();
-  } catch (e) {
-    next(new Error(e.message));
-  }
-});
-io.on('connection', (socket) => {
-  socket.join(`user:${socket.user.id}`);
-  socket.on('room:join', async ({ roomId } = {}) => {
-    try {
-      const room = await Room.findById(roomId);
-      if (!room || room.expiresAt < Date.now())
-        return socket.emit('room:error', { message: 'Room unavailable' });
-      const allowed =
-        socket.user.role === 'teacher'
-          ? room.teacher.equals(socket.user._id)
-          : room.eligibleStudents.some((id) => id.equals(socket.user._id)) &&
-            room.participants.some((id) => id.equals(socket.user._id));
-      if (!allowed) return socket.emit('room:error', { message: 'Not authorized' });
-      socket.join(`room:${room.id}`);
-      if (socket.user.role === 'teacher')
-        socket.to(`room:${room.id}`).emit('room:participant-joined', { userId: socket.user.id });
-    } catch {
-      socket.emit('room:error', { message: 'Room unavailable' });
-    }
-  });
-  socket.on('room:start', async ({ roomId } = {}) => {
-    const room = await Room.findById(roomId);
-    if (
-      !room ||
-      socket.user.role !== 'teacher' ||
-      !room.teacher.equals(socket.user._id) ||
-      room.status !== 'WAITING'
-    )
-      return socket.emit('room:error', { message: 'Not authorized or room already started' });
-    const assessment = await Assessment.findById(room.assessment);
-    if (
-      !assessment ||
-      (assessment.startsAt && assessment.startsAt > Date.now()) ||
-      (assessment.endsAt && assessment.endsAt < Date.now())
-    )
-      return socket.emit('room:error', { message: 'Assessment is outside its scheduled window' });
-    room.status = 'LIVE';
-    await room.save();
-    assessment.state = 'LIVE';
-    await assessment.save();
-    io.to(`room:${room.id}`).emit('room:start', { startedAt: new Date().toISOString() });
-  });
-  socket.on('room:pause', async ({ roomId } = {}) => {
-    const room = await Room.findById(roomId);
-    if (!room || socket.user.role !== 'teacher' || !room.teacher.equals(socket.user._id))
-      return socket.emit('room:error', { message: 'Not authorized' });
-    const assessment = await Assessment.findById(room.assessment);
-    if (!assessment || assessment.state !== 'LIVE')
-      return socket.emit('room:error', { message: 'Assessment is not live' });
-    await transitionAssessment(assessment, 'PAUSED', io);
-  });
-  socket.on('room:resume', async ({ roomId } = {}) => {
-    const room = await Room.findById(roomId);
-    if (!room || socket.user.role !== 'teacher' || !room.teacher.equals(socket.user._id))
-      return socket.emit('room:error', { message: 'Not authorized' });
-    const assessment = await Assessment.findById(room.assessment);
-    if (!assessment || assessment.state !== 'PAUSED')
-      return socket.emit('room:error', { message: 'Assessment is not paused' });
-    await transitionAssessment(assessment, 'LIVE', io);
-  });
-  socket.on('room:end', async ({ roomId } = {}) => {
-    const room = await Room.findById(roomId);
-    if (!room || socket.user.role !== 'teacher' || !room.teacher.equals(socket.user._id))
-      return socket.emit('room:error', { message: 'Not authorized' });
-    const assessment = await Assessment.findById(room.assessment);
-    if (!assessment || ['ENDED', 'PUBLISHED'].includes(assessment.state))
-      return socket.emit('room:error', { message: 'Assessment is already ended' });
-    await transitionAssessment(assessment, 'ENDED', io);
-  });
-});
+registerSocketHandlers(io);
 export { app, server, io };
 if (process.env.NODE_ENV !== 'test')
   setInterval(
