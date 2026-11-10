@@ -13,6 +13,7 @@ import { Server } from 'socket.io';
 import { connectDB } from './config/db.js';
 import api from './routes/api.js';
 import { submitExpiredAttempts } from './services/attempts.js';
+import { advanceAssessmentStates } from './services/assessment-schedule.js';
 import { registerSocketHandlers } from './realtime/socket.js';
 const app = express();
 const origin = (process.env.CLIENT_ORIGIN || 'http://localhost:5173').split(',');
@@ -65,11 +66,10 @@ app.set('io', io);
 registerSocketHandlers(io);
 export { app, server, io };
 if (process.env.NODE_ENV !== 'test')
-  setInterval(
-    () =>
-      submitExpiredAttempts().catch((err) => console.error('Attempt expiration sweep failed:', err.message)),
-    5000,
-  ).unref();
+  setInterval(() => {
+    advanceAssessmentStates().catch((err) => console.error('Assessment schedule sweep failed:', err.message));
+    submitExpiredAttempts().catch((err) => console.error('Attempt expiration sweep failed:', err.message));
+  }, 5000).unref();
 if (process.env.NODE_ENV !== 'test') {
   const port = Number(process.env.PORT) || 4000;
   connectDB()

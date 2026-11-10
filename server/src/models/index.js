@@ -93,7 +93,16 @@ const assessmentSchema = new Schema(
     publishResultsAt: Date,
     pausedAt: Date,
     allowLateJoin: Boolean,
-    proctoring: { enabled: Boolean, policy: Schema.Types.Mixed },
+    proctoring: {
+      enabled: { type: Boolean, default: true },
+      requireFullscreen: { type: Boolean, default: true },
+      // Counted violations allowed before the attempt is auto-submitted; 0 disables auto-submit.
+      maxViolations: { type: Number, default: 3, min: 0, max: 20 },
+      blockClipboard: { type: Boolean, default: true },
+      blockContextMenu: { type: Boolean, default: true },
+      detectDuplicateTab: { type: Boolean, default: true },
+      detectDevtools: { type: Boolean, default: false },
+    },
   },
   opts,
 );
@@ -116,7 +125,15 @@ const attemptSchema = new Schema(
   },
   opts,
 );
-attemptSchema.add({ attemptNumber: { type: Number, default: 1 } });
+attemptSchema.add({
+  attemptNumber: { type: Number, default: 1 },
+  violationCount: { type: Number, default: 0 },
+  submitReason: {
+    type: String,
+    enum: ['MANUAL', 'TIMEOUT', 'ASSESSMENT_ENDED', 'PROCTORING_LIMIT', 'TEACHER'],
+  },
+  lastSeenAt: Date,
+});
 attemptSchema.index({ assessment: 1, student: 1, attemptNumber: 1 }, { unique: true });
 const gradeSchema = new Schema(
   {

@@ -36,8 +36,12 @@ import { notify } from '../services/notifications.js';
 import { transitionAssessment } from '../services/assessment-lifecycle.js';
 import { wrap, send, oid } from '../utils/http.js';
 import dashboardRoutes from './dashboard.js';
+import assessmentRoutes from './assessments.js';
+import questionRoutes from './questions.js';
 const router = Router();
 router.use(dashboardRoutes);
+router.use(assessmentRoutes);
+router.use(questionRoutes);
 const secureShuffle = (values) => {
   const arr = [...values];
   for (let i = arr.length - 1; i > 0; i--) {
@@ -658,136 +662,6 @@ router.get(
     );
   }),
 );
-router.get(
-  '/assessments',
-  authenticate,
-  wrap(async (req, res) => {
-    const now = new Date();
-    await Assessment.updateMany(
-      { state: 'SCHEDULED', startsAt: { $lte: now }, $or: [{ endsAt: null }, { endsAt: { $gt: now } }] },
-      { $set: { state: 'AVAILABLE' } },
-    );
-    await Assessment.updateMany(
-      { state: { $in: ['SCHEDULED', 'AVAILABLE', 'LIVE', 'PAUSED'] }, endsAt: { $lte: now } },
-      { $set: { state: 'ENDED' } },
-    );
-    const filter = {};
-    if (req.query.subject) filter.subject = req.query.subject;
-    if (req.user.role === 'teacher') {
-      filter.creator = req.user._id;
-    } else if (req.user.role === 'student') {
-      filter.subject = { $in: await Subject.find({ students: req.user._id }).distinct('_id') };
-      filter.state = { $in: ['SCHEDULED', 'AVAILABLE', 'LIVE', 'PAUSED', 'ENDED', 'COMPLETED', 'PUBLISHED'] };
-    }
-    const assessments = await Assessment.find(filter)
-      .populate('subject', 'name code')
-      .sort({ startsAt: 1, createdAt: -1 });
-    if (req.user.role === 'student') {
-      for (const a of assessments) {
-        if (!['LIVE', 'AVAILABLE', 'ENDED', 'COMPLETED', 'PUBLISHED'].includes(a.state)) a.questionIds = [];
-        else a.questionIds = [];
-      }
-    }
-    send(res, assessments);
-  }),
-);
-router.post(
-  '/assessments',
-  authenticate,
-  allow('teacher', 'admin'),
-  wrap(async (req, res) => {
-    const b = z
-      .object({
-        subject: z.string().refine(oid),
-        title: z.string().min(3),
-        description: z.string().optional(),
-        category: z.literal('Quiz').default('Quiz'),
-        questionIds: z.array(z.string().refine(oid)).min(1),
-        maxMarks: z.coerce.number().refine((value) => value === 10, 'Quiz maximum marks must be 10'),
-        durationMinutes: z.coerce.number().int().positive().max(600),
-        startsAt: z.coerce.date().optional(),
-        endsAt: z.coerce.date().optional(),
-        availabilityMode: z.enum(['scheduled', 'instant', 'room']).default('scheduled'),
-        attemptsAllowed: z.coerce.number().int().min(1).max(10).default(1),
-        randomizeQuestions: z.boolean().default(false),
-        randomizeOptions: z.boolean().default(false),
-        proctoring: z
-          .object({
-            enabled: z.boolean().default(true),
-            policy: z
-              .object({
-                tabSwitchWarnings: z.coerce.number().int().min(1).max(10).default(3),
-                fullscreenRequired: z.boolean().default(false),
-              })
-              .default({}),
-          })
-          .default({}),
-      })
-      .parse(req.body);
-    if (b.endsAt && b.startsAt && b.endsAt <= b.startsAt)
-      return res.status(400).json({ ok: false, error: 'Closing time must be after opening time' });
-    const subject = await Subject.findById(b.subject);
-    if (!subject) return res.status(404).json({ ok: false, error: 'Subject not found' });
-    if (req.user.role === 'teacher' && !subject.teachers.some((x) => x.equals(req.user._id)))
-      return res.status(403).json({ ok: false, error: 'Not allocated to subject' });
-    const qs = await Question.find({ _id: { $in: b.questionIds }, subject: subject._id, archivedAt: null });
-    if (qs.some((q) => !['single', 'fill_blank'].includes(q.type)))
-      return res
-        .status(400)
-        .json({ ok: false, error: 'Quizzes support MCQ and single-line fill-in questions only' });
-    if (qs.length !== new Set(b.questionIds).size)
-      return res
-        .status(400)
-        .json({ ok: false, error: 'Questions must be active and from the selected subject' });
-    const total = qs.reduce((n, q) => n + q.marks, 0);
-    if (total !== b.maxMarks)
-      return res.status(400).json({ ok: false, error: `Question marks total ${total}, not ${b.maxMarks}` });
-    const a = await Assessment.create({
-      ...b,
-      creator: req.user._id,
-      state: b.availabilityMode === 'scheduled' ? 'SCHEDULED' : 'DRAFT',
-    });
-    if (a.startsAt)
-      await AcademicCalendarEvent.create({
-        title: a.title,
-        description: a.description,
-        subject: a.subject,
-        startAt: a.startsAt,
-        endAt: a.endsAt || new Date(a.startsAt.getTime() + a.durationMinutes * 60_000),
-        type: a.category,
-        createdBy: req.user._id,
-      });
-    await audit(req, 'ASSESSMENT_CREATED', 'Assessment', a._id);
-    send(res, a, 201);
-  }),
-);
-router.post(
-  '/assessments/:id/publish',
-  authenticate,
-  allow('teacher', 'admin'),
-  wrap(async (req, res) => {
-    const a = await Assessment.findById(req.params.id).populate('subject');
-    if (!a) return res.status(404).json({ ok: false, error: 'Assessment not found' });
-    if (req.user.role === 'teacher' && !a.subject.teachers.some((x) => x.equals(req.user._id)))
-      return res.status(403).json({ ok: false, error: 'Not authorized' });
-    if (a.state !== 'DRAFT')
-      return res.status(409).json({ ok: false, error: 'Only drafts may be published' });
-    a.state =
-      a.availabilityMode === 'room'
-        ? 'SCHEDULED'
-        : a.availabilityMode === 'scheduled' && a.startsAt > Date.now()
-          ? 'SCHEDULED'
-          : 'AVAILABLE';
-    await a.save();
-    await audit(req, 'ASSESSMENT_PUBLISHED', 'Assessment', a._id);
-    await notify(req.app, a.subject.students, {
-      title: 'New assessment',
-      body: `${a.title} is now available for ${a.subject.code}.`,
-      href: '/assessments',
-    });
-    send(res, a);
-  }),
-);
 router.post(
   '/assessments/:id/start',
   authenticate,
@@ -1115,53 +989,6 @@ router.post(
       href: '/grades',
     });
     send(res, g);
-  }),
-);
-router.get(
-  '/questions',
-  authenticate,
-  allow('teacher', 'admin'),
-  wrap(async (req, res) => {
-    const filter = { archivedAt: null };
-    if (req.query.subject) filter.subject = req.query.subject;
-    if (req.user.role === 'teacher') filter.creator = req.user._id;
-    send(res, await Question.find(filter).sort({ createdAt: -1 }).limit(200));
-  }),
-);
-router.post(
-  '/questions',
-  authenticate,
-  allow('teacher', 'admin'),
-  wrap(async (req, res) => {
-    const b = z
-      .object({
-        subject: z.string().refine(oid),
-        text: z.string().min(3),
-        type: z.enum(['single', 'fill_blank']),
-        topic: z.string().optional(),
-        difficulty: z.enum(['easy', 'medium', 'hard']).default('medium'),
-        marks: z.coerce.number().positive(),
-        options: z.array(z.object({ text: z.string(), key: z.string() })).optional(),
-        correctAnswer: z.unknown().optional(),
-      })
-      .parse(req.body);
-    const subject = await Subject.findById(b.subject);
-    if (!subject) return res.status(404).json({ ok: false, error: 'Subject not found' });
-    if (req.user.role === 'teacher' && !subject.teachers.some((x) => x.equals(req.user._id)))
-      return res.status(403).json({ ok: false, error: 'Not allocated to subject' });
-    if (b.type === 'single' && (b.options?.length ?? 0) < 2)
-      return res.status(400).json({ ok: false, error: 'MCQ needs at least two options' });
-    if (b.type === 'single' && new Set(b.options.map((option) => option.key)).size !== b.options.length)
-      return res.status(400).json({ ok: false, error: 'MCQ option keys must be unique' });
-    if (
-      b.type === 'single' &&
-      (!b.options.some((option) => option.key === b.correctAnswer) ||
-        b.options.some((option) => !option.text.trim()))
-    )
-      return res.status(400).json({ ok: false, error: 'Correct answer must match a non-empty option' });
-    if (b.type === 'fill_blank' && (typeof b.correctAnswer !== 'string' || !b.correctAnswer.trim()))
-      return res.status(400).json({ ok: false, error: 'Fill-in answer is required' });
-    send(res, await Question.create({ ...b, creator: req.user._id }), 201);
   }),
 );
 router.post(
