@@ -1,4 +1,8 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
+const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+dotenv.config({ path: resolve(projectRoot, '.env') });
 import http from 'node:http';
 import express from 'express';
 import helmet from 'helmet';
