@@ -1,5 +1,6 @@
 import { Assessment, Attempt, Room } from '../models/index.js';
 import { finalizeAttempt } from './attempts.js';
+import { toMonitor } from './realtime.js';
 export async function transitionAssessment(assessment, nextState, io) {
   const now = new Date();
   if (nextState === 'PAUSED') {
@@ -27,6 +28,7 @@ export async function transitionAssessment(assessment, nextState, io) {
   }
   assessment.state = nextState;
   await assessment.save();
+  toMonitor(String(assessment._id), 'monitor:state', { state: nextState, at: now.toISOString() });
   const roomState =
     nextState === 'PAUSED'
       ? 'PAUSED'
@@ -49,7 +51,7 @@ export async function transitionAssessment(assessment, nextState, io) {
   if (nextState === 'ENDED') {
     const active = await Attempt.find({ assessment: assessment._id, state: 'IN_PROGRESS' }).select('_id');
     for (const attempt of active) {
-      await finalizeAttempt(attempt._id);
+      await finalizeAttempt(attempt._id, { reason: 'ASSESSMENT_ENDED' });
       io?.to(`user:${attempt.student}`).emit('assessment:ended', { attemptId: String(attempt._id) });
     }
   }

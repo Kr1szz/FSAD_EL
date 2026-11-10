@@ -1,4 +1,4 @@
-import { randomBytes, randomInt } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { unlink } from 'node:fs/promises';
 import { basename } from 'node:path';
 import { assignmentUpload, storedPath } from '../middleware/upload.js';
@@ -31,34 +31,18 @@ import {
 } from '../models/index.js';
 import { audit } from '../utils/audit.js';
 import { parseCSV } from '../utils/csv.js';
-import { finalizeAttempt } from '../services/attempts.js';
 import { notify } from '../services/notifications.js';
 import { transitionAssessment } from '../services/assessment-lifecycle.js';
 import { wrap, send, oid } from '../utils/http.js';
 import dashboardRoutes from './dashboard.js';
 import assessmentRoutes from './assessments.js';
 import questionRoutes from './questions.js';
+import attemptRoutes from './attempts.js';
 const router = Router();
 router.use(dashboardRoutes);
 router.use(assessmentRoutes);
 router.use(questionRoutes);
-const secureShuffle = (values) => {
-  const arr = [...values];
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = randomInt(i + 1);
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
-};
-const orderOptions = (questions, orders = []) => {
-  const lookup = new Map(orders.map((x) => [String(x.question), x.keys]));
-  return questions.map((q) => {
-    const keys = lookup.get(String(q._id));
-    if (!keys?.length) return q;
-    const byKey = new Map(q.options.map((o) => [o.key, o]));
-    return { ...q.toObject(), options: keys.map((k) => byKey.get(k)).filter(Boolean) };
-  });
-};
+router.use(attemptRoutes);
 const getPage = (req) => ({
   page: Math.max(1, Number(req.query.page) || 1),
   limit: Math.min(100, Math.max(1, Number(req.query.limit) || 25)),
@@ -644,261 +628,6 @@ for (const [action, allowedStates, nextState] of [
       send(res, a);
     }),
   );
-router.get(
-  '/assessments/:id/attempts',
-  authenticate,
-  allow('teacher', 'admin'),
-  wrap(async (req, res) => {
-    const a = await getAuthorizedAssessment(req.params.id, req.user);
-    if (!a) return res.status(404).json({ ok: false, error: 'Assessment not found' });
-    const filter = { assessment: a._id };
-    if (req.query.state) filter.state = req.query.state;
-    send(
-      res,
-      await Attempt.find(filter)
-        .populate('student', 'name usn email')
-        .populate('questionOrder', 'text type marks')
-        .sort({ startedAt: 1 }),
-    );
-  }),
-);
-router.post(
-  '/assessments/:id/start',
-  authenticate,
-  allow('student'),
-  wrap(async (req, res) => {
-    const { roomId } = z.object({ roomId: z.string().refine(oid).optional() }).parse(req.body || {});
-    const a = await Assessment.findById(req.params.id);
-    if (!a) return res.status(404).json({ ok: false, error: 'Assessment not found' });
-    const now = new Date();
-    let joinedRoom = null;
-    if (a.availabilityMode === 'room') {
-      joinedRoom = roomId
-        ? await Room.findOne({
-            _id: roomId,
-            assessment: a._id,
-            status: 'LIVE',
-            expiresAt: { $gt: now },
-            participants: req.user._id,
-          })
-        : null;
-      if (!joinedRoom)
-        return res.status(403).json({ ok: false, error: 'Join the active examination room first' });
-    }
-    if (a.state === 'SCHEDULED' && a.startsAt && a.startsAt <= now && (!a.endsAt || a.endsAt >= now)) {
-      a.state = 'AVAILABLE';
-      await a.save();
-    }
-    if (
-      !['AVAILABLE', 'LIVE'].includes(a.state) ||
-      (a.startsAt && a.startsAt > now) ||
-      (a.endsAt && a.endsAt < now)
-    )
-      return res.status(409).json({ ok: false, error: 'Assessment is not available' });
-    const subject = await Subject.findOne({ _id: a.subject, students: req.user._id });
-    if (!subject) return res.status(403).json({ ok: false, error: 'Not enrolled in this subject' });
-    let at = await Attempt.findOne({ assessment: a._id, student: req.user._id, state: 'IN_PROGRESS' });
-    if (at) {
-      const qs = await Question.find({ _id: { $in: at.questionOrder } }).select(
-        'text type options marks topic',
-      );
-      const ordered = orderOptions(qs, at.optionOrders);
-      const byId = new Map(ordered.map((q) => [q._id.toString(), q]));
-      return send(res, {
-        attempt: {
-          id: at.id,
-          startedAt: at.startedAt,
-          deadlineAt: at.deadlineAt,
-          state: at.state,
-          answers: at.answers,
-        },
-        questions: at.questionOrder.map((id) => byId.get(String(id))).filter(Boolean),
-      });
-    }
-    const count = await Attempt.countDocuments({ assessment: a._id, student: req.user._id });
-    if (count >= a.attemptsAllowed)
-      return res.status(409).json({ ok: false, error: 'Attempt limit reached' });
-    let ids = [...a.questionIds];
-    if (a.randomizeQuestions) ids = secureShuffle(ids);
-    const paper = await Question.find({ _id: { $in: ids } }).select('text type options marks topic');
-    const optionOrders = a.randomizeOptions
-      ? paper.map((q) => ({ question: q._id, keys: secureShuffle(q.options.map((o) => o.key)) }))
-      : [];
-    const deadlineAt = new Date(now.getTime() + a.durationMinutes * 60_000);
-    if (a.endsAt && a.endsAt < deadlineAt) deadlineAt.setTime(a.endsAt.getTime());
-    try {
-      at = await Attempt.create({
-        assessment: a._id,
-        student: req.user._id,
-        attemptNumber: count + 1,
-        questionOrder: ids,
-        optionOrders,
-        startedAt: now,
-        deadlineAt,
-      });
-    } catch (err) {
-      if (err.code === 11000)
-        return res
-          .status(409)
-          .json({ ok: false, error: 'An attempt was already started; refresh to recover it' });
-      throw err;
-    }
-    const qs = await Question.find({ _id: { $in: ids } }).select('text type options marks topic');
-    const ordered = orderOptions(qs, at.optionOrders);
-    const byId = new Map(ordered.map((q) => [q._id.toString(), q]));
-    send(
-      res,
-      {
-        attempt: {
-          id: at.id,
-          startedAt: at.startedAt,
-          deadlineAt: at.deadlineAt,
-          state: at.state,
-          answers: [],
-        },
-        questions: ids.map((id) => byId.get(String(id))).filter(Boolean),
-      },
-      201,
-    );
-  }),
-);
-function attemptPayload(at, a) {
-  return {
-    attempt: {
-      id: at.id,
-      startedAt: at.startedAt,
-      deadlineAt: at.deadlineAt,
-      state: at.state,
-      answers: at.answers,
-    },
-    questions: [],
-  };
-}
-router.get(
-  '/attempts/:id',
-  authenticate,
-  wrap(async (req, res) => {
-    const at = await Attempt.findById(req.params.id).populate('assessment');
-    if (!at) return res.status(404).json({ ok: false, error: 'Attempt not found' });
-    if (req.user.role === 'student' && !at.student.equals(req.user._id))
-      return res.status(403).json({ ok: false, error: 'Not authorized' });
-    if (req.user.role === 'teacher') {
-      const subject = await Subject.findOne({ _id: at.assessment.subject, teachers: req.user._id });
-      if (!subject) return res.status(403).json({ ok: false, error: 'Not authorized' });
-    }
-    const qs = await Question.find({ _id: { $in: at.questionOrder } }).select(
-      'text type options marks topic',
-    );
-    const ordered = orderOptions(qs, at.optionOrders);
-    const byId = new Map(ordered.map((q) => [q._id.toString(), q]));
-    send(res, {
-      assessment: { title: at.assessment.title, subject: at.assessment.subject },
-      attempt: {
-        id: at.id,
-        startedAt: at.startedAt,
-        deadlineAt: at.deadlineAt,
-        state: at.state,
-        answers: at.answers,
-      },
-      questions: at.questionOrder.map((id) => byId.get(String(id))).filter(Boolean),
-    });
-  }),
-);
-router.patch(
-  '/attempts/:id/answers',
-  authenticate,
-  allow('student'),
-  wrap(async (req, res) => {
-    const b = z
-      .object({ question: z.string().refine(oid), value: z.unknown(), flagged: z.boolean().optional() })
-      .parse(req.body);
-    const at = await Attempt.findOne({ _id: req.params.id, student: req.user._id });
-    if (!at) return res.status(404).json({ ok: false, error: 'Attempt not found' });
-    if (at.state !== 'IN_PROGRESS')
-      return res.status(409).json({ ok: false, error: 'Attempt is not active' });
-    const assessment = await Assessment.findById(at.assessment);
-    if (assessment?.state === 'PAUSED')
-      return res.status(409).json({ ok: false, error: 'Assessment is paused' });
-    if (assessment?.state === 'ENDED')
-      return res.status(409).json({ ok: false, error: 'Assessment has ended' });
-    if (new Date() >= at.deadlineAt)
-      return res.status(409).json({ ok: false, error: 'Attempt deadline passed' });
-    if (!at.questionOrder.some((q) => q.equals(b.question)))
-      return res.status(400).json({ ok: false, error: 'Question is not in this paper' });
-    const old = at.answers.find((x) => x.question.equals(b.question));
-    if (old) {
-      old.value = b.value;
-      old.savedAt = new Date();
-      if (b.flagged !== undefined) old.flagged = b.flagged;
-    } else
-      at.answers.push({
-        question: b.question,
-        value: b.value,
-        savedAt: new Date(),
-        flagged: b.flagged || false,
-      });
-    await at.save();
-    send(res, { savedAt: new Date() });
-  }),
-);
-router.post(
-  '/attempts/:id/extend',
-  authenticate,
-  allow('teacher', 'admin'),
-  wrap(async (req, res) => {
-    const { minutes } = z.object({ minutes: z.coerce.number().int().min(1).max(240) }).parse(req.body);
-    const at = await Attempt.findById(req.params.id).populate({
-      path: 'assessment',
-      populate: { path: 'subject' },
-    });
-    if (!at) return res.status(404).json({ ok: false, error: 'Attempt not found' });
-    if (req.user.role === 'teacher' && !at.assessment.subject.teachers.some((x) => x.equals(req.user._id)))
-      return res.status(403).json({ ok: false, error: 'Not authorized' });
-    if (at.state !== 'IN_PROGRESS')
-      return res.status(409).json({ ok: false, error: 'Attempt is not active' });
-    at.deadlineAt = new Date(Math.max(Date.now(), at.deadlineAt.getTime()) + minutes * 60_000);
-    await at.save();
-    await audit(req, 'ATTEMPT_TIME_EXTENDED', 'Attempt', at._id, { minutes });
-    send(res, { deadlineAt: at.deadlineAt });
-  }),
-);
-router.post(
-  '/attempts/:id/proctoring-events',
-  authenticate,
-  allow('student'),
-  wrap(async (req, res) => {
-    const b = z
-      .object({
-        type: z.enum(['TAB_HIDDEN', 'WINDOW_BLUR', 'FULLSCREEN_EXIT', 'COPY', 'PASTE', 'NAVIGATION']),
-      })
-      .parse(req.body);
-    const at = await Attempt.findOne({ _id: req.params.id, student: req.user._id });
-    if (!at) return res.status(404).json({ ok: false, error: 'Attempt not found' });
-    if (at.state !== 'IN_PROGRESS')
-      return res.status(409).json({ ok: false, error: 'Attempt is not active' });
-    const severity = at.proctoringEvents.length + 1 >= 3 ? 'REVIEW' : 'WARNING';
-    at.proctoringEvents.push({ type: b.type, occurredAt: new Date(), severity });
-    await at.save();
-    send(res, { count: at.proctoringEvents.length, severity });
-  }),
-);
-router.post(
-  '/attempts/:id/submit',
-  authenticate,
-  allow('student'),
-  wrap(async (req, res) => {
-    const attempt = await Attempt.findOne({ _id: req.params.id, student: req.user._id }).populate(
-      'assessment',
-    );
-    if (!attempt) return res.status(404).json({ ok: false, error: 'Attempt not found' });
-    if (attempt.state !== 'IN_PROGRESS')
-      return send(res, { state: attempt.state, submittedAt: attempt.submittedAt });
-    if (attempt.assessment.state === 'PAUSED')
-      return res.status(409).json({ ok: false, error: 'Assessment is paused' });
-    const at = await finalizeAttempt(attempt._id);
-    send(res, { state: at.state, submittedAt: at.submittedAt, objectiveScore: at.objectiveScore });
-  }),
-);
 router.patch(
   '/grade-reviews/:id',
   authenticate,

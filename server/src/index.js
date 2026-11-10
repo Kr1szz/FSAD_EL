@@ -15,6 +15,7 @@ import api from './routes/api.js';
 import { submitExpiredAttempts } from './services/attempts.js';
 import { advanceAssessmentStates } from './services/assessment-schedule.js';
 import { registerSocketHandlers } from './realtime/socket.js';
+import { setIO } from './services/realtime.js';
 const app = express();
 const origin = (process.env.CLIENT_ORIGIN || 'http://localhost:5173').split(',');
 app.disable('x-powered-by');
@@ -63,6 +64,7 @@ app.use((err, _req, res, _next) => {
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin, credentials: true } });
 app.set('io', io);
+setIO(io);
 registerSocketHandlers(io);
 export { app, server, io };
 if (process.env.NODE_ENV !== 'test')

@@ -1,5 +1,7 @@
 import jwt from 'jsonwebtoken';
-import { User, Room, Assessment } from '../models/index.js';
+import { User, Room, Assessment, Attempt } from '../models/index.js';
+import { canMonitor } from '../routes/attempts.js';
+import { toMonitor } from '../services/realtime.js';
 import { transitionAssessment } from '../services/assessment-lifecycle.js';
 
 const isObjectId = (id) => typeof id === 'string' && /^[a-f\d]{24}$/i.test(id);
@@ -52,6 +54,49 @@ export function registerSocketHandlers(io) {
   io.use(authenticateSocket);
   io.on('connection', (socket) => {
     socket.join(`user:${socket.user.id}`);
+
+    // Teachers subscribe to live events for one assessment.
+    socket.on('monitor:join', async ({ assessmentId } = {}, ack) => {
+      try {
+        const ok = await canMonitor(socket.user, assessmentId);
+        if (ok) socket.join(`monitor:${assessmentId}`);
+        ack?.({ ok });
+      } catch {
+        ack?.({ ok: false });
+      }
+    });
+    socket.on('monitor:leave', ({ assessmentId } = {}) => socket.leave(`monitor:${assessmentId}`));
+
+    // Students heartbeat while an attempt is open so teachers can see who is connected.
+    socket.on('attempt:heartbeat', async ({ attemptId } = {}) => {
+      try {
+        if (!isObjectId(attemptId) || socket.user.role !== 'student') return;
+        const now = new Date();
+        const at = await Attempt.findOneAndUpdate(
+          { _id: attemptId, student: socket.user._id, state: 'IN_PROGRESS' },
+          { $set: { lastSeenAt: now } },
+          { new: true },
+        ).select('assessment');
+        if (!at) return;
+        socket.data.attempt = { id: attemptId, assessment: String(at.assessment) };
+        toMonitor(String(at.assessment), 'monitor:presence', {
+          attemptId,
+          online: true,
+          at: now.toISOString(),
+        });
+      } catch {
+        /* heartbeat failures are not user-visible */
+      }
+    });
+    socket.on('disconnect', () => {
+      const current = socket.data.attempt;
+      if (current)
+        toMonitor(current.assessment, 'monitor:presence', {
+          attemptId: current.id,
+          online: false,
+          at: new Date().toISOString(),
+        });
+    });
 
     socket.on(
       'room:join',
