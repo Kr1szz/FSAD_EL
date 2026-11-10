@@ -6,6 +6,9 @@ const Subjects = lazy(() => import('./pages/subjects/Subjects.jsx'));
 const Assessments = lazy(() => import('./pages/assessments/Assessments.jsx'));
 const QuizBuilder = lazy(() => import('./pages/assessments/QuizBuilder.jsx'));
 const QuestionBank = lazy(() => import('./pages/questions/QuestionBank.jsx'));
+const ExamPage = lazy(() => import('./pages/exam/ExamPage.jsx'));
+const ExamRoom = lazy(() => import('./pages/exam/ExamRoom.jsx'));
+const AttemptRedirect = lazy(() => import('./pages/exam/ExamRoom.jsx').then((m) => ({ default: m.AttemptRedirect })));
 import * as Legacy from './pages/legacy/LegacyPages.jsx';
 
 const T = ['teacher', 'admin'];
@@ -30,8 +33,11 @@ export const appRoutes = [
   { path: '/notifications', element: <Legacy.Notifications /> },
   { path: '/audit', element: <Legacy.Audit />, roles: A },
   { path: '/settings', element: <Legacy.SettingsPage />, roles: A },
-  { path: '/rooms/:id', element: <Legacy.ExamRoom /> },
+  { path: '/rooms/:id', element: <ExamRoom /> },
 ];
 
 /** Routes rendered without the shell (distraction-free exam screens). */
-export const fullscreenRoutes = [{ path: '/attempt/:id', element: <Legacy.ExamAttempt /> }];
+export const fullscreenRoutes = [
+  { path: '/exam/:assessmentId', element: <ExamPage />, roles: ['student'] },
+  { path: '/attempt/:id', element: <AttemptRedirect />, roles: ['student'] },
+];

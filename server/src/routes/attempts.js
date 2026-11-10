@@ -296,7 +296,8 @@ router.post(
         submitReason: attempt.submitReason,
       });
     if (attempt.assessment.state === 'PAUSED') throw httpError(409, 'Assessment is paused');
-    const at = await finalizeAttempt(attempt._id, { reason: 'MANUAL' });
+    const reason = Date.now() >= attempt.deadlineAt.getTime() ? 'TIMEOUT' : 'MANUAL';
+    const at = await finalizeAttempt(attempt._id, { reason });
     send(res, { state: at.state, submittedAt: at.submittedAt, submitReason: at.submitReason });
   }),
 );

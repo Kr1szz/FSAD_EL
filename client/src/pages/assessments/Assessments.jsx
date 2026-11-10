@@ -149,7 +149,7 @@ function StudentActions({ a }) {
   };
   if (mine.activeId)
     return (
-      <Button size="sm" variant="primary" icon={RotateCcw} to={`/exam/${a._id}`}>
+      <Button size="sm" variant="primary" icon={RotateCcw} to={`/exam/${a._id}?resume=1`}>
         Resume
       </Button>
     );
