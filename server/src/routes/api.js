@@ -187,6 +187,10 @@ router.get(
     const { page, limit } = getPage(req);
     const filter = {};
     if (req.query.role) filter.role = req.query.role;
+    if (oid(req.query.department)) filter.department = req.query.department;
+    if (req.query.status === 'active') filter.isActive = true;
+    if (req.query.status === 'inactive') filter.isActive = false;
+    if (req.query.status === 'pending') filter.approvalStatus = 'pending';
     if (req.query.search) {
       const re = new RegExp(String(req.query.search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
       filter.$or = [{ name: re }, { email: re }, { usn: re }];

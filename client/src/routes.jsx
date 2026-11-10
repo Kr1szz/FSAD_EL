@@ -1,5 +1,8 @@
 import { lazy } from 'react';
 const Dashboard = lazy(() => import('./pages/dashboard/Dashboard.jsx'));
+const People = lazy(() => import('./pages/people/People.jsx'));
+const Structure = lazy(() => import('./pages/structure/Structure.jsx'));
+const Subjects = lazy(() => import('./pages/subjects/Subjects.jsx'));
 import * as Legacy from './pages/legacy/LegacyPages.jsx';
 
 const T = ['teacher', 'admin'];
@@ -8,10 +11,10 @@ const A = ['admin'];
 /** Routes rendered inside the app shell (sidebar + topbar). */
 export const appRoutes = [
   { path: '/', element: <Dashboard /> },
-  { path: '/students', element: <Legacy.People role="student" />, roles: A },
-  { path: '/teachers', element: <Legacy.People role="teacher" />, roles: A },
-  { path: '/structure', element: <Legacy.Structure />, roles: A },
-  { path: '/subjects', element: <Legacy.Subjects /> },
+  { path: '/students', element: <People key="student" role="student" />, roles: A },
+  { path: '/teachers', element: <People key="teacher" role="teacher" />, roles: A },
+  { path: '/structure', element: <Structure />, roles: A },
+  { path: '/subjects', element: <Subjects /> },
   { path: '/assessments', element: <Legacy.Assessments /> },
   { path: '/evaluation', element: <Legacy.Evaluation />, roles: T },
   { path: '/grades', element: <Legacy.Grades />, roles: ['student'] },
