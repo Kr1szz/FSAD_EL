@@ -3,6 +3,9 @@ const Dashboard = lazy(() => import('./pages/dashboard/Dashboard.jsx'));
 const People = lazy(() => import('./pages/people/People.jsx'));
 const Structure = lazy(() => import('./pages/structure/Structure.jsx'));
 const Subjects = lazy(() => import('./pages/subjects/Subjects.jsx'));
+const Assessments = lazy(() => import('./pages/assessments/Assessments.jsx'));
+const QuizBuilder = lazy(() => import('./pages/assessments/QuizBuilder.jsx'));
+const QuestionBank = lazy(() => import('./pages/questions/QuestionBank.jsx'));
 import * as Legacy from './pages/legacy/LegacyPages.jsx';
 
 const T = ['teacher', 'admin'];
@@ -15,10 +18,12 @@ export const appRoutes = [
   { path: '/teachers', element: <People key="teacher" role="teacher" />, roles: A },
   { path: '/structure', element: <Structure />, roles: A },
   { path: '/subjects', element: <Subjects /> },
-  { path: '/assessments', element: <Legacy.Assessments /> },
+  { path: '/assessments', element: <Assessments /> },
+  { path: '/assessments/new', element: <QuizBuilder key="new" />, roles: T },
+  { path: '/assessments/:id/edit', element: <QuizBuilder key="edit" />, roles: T },
   { path: '/evaluation', element: <Legacy.Evaluation />, roles: T },
   { path: '/grades', element: <Legacy.Grades />, roles: ['student'] },
-  { path: '/questions', element: <Legacy.Questions />, roles: T },
+  { path: '/questions', element: <QuestionBank />, roles: T },
   { path: '/assignments', element: <Legacy.Assignments /> },
   { path: '/announcements', element: <Legacy.Announcements /> },
   { path: '/calendar', element: <Legacy.CalendarPage /> },
