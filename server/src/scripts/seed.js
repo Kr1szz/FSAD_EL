@@ -1,4 +1,7 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
+dotenv.config({ path: resolve(dirname(fileURLToPath(import.meta.url)), '../../../.env') });
 import { connectDB } from '../config/db.js';
 import {
   Department,
@@ -34,9 +37,19 @@ try {
   for (const account of accounts) {
     const user = await User.findOneAndUpdate(
       { email: account.email },
-      {
-        $setOnInsert: { ...account, department: department._id, isActive: false, approvalStatus: 'pending' },
-      },
+      process.env.SEED_ACTIVATE === 'true'
+        ? {
+            $setOnInsert: { ...account, department: department._id },
+            $set: { isActive: true, approvalStatus: 'approved' },
+          }
+        : {
+            $setOnInsert: {
+              ...account,
+              department: department._id,
+              isActive: false,
+              approvalStatus: 'pending',
+            },
+          },
       { upsert: true, new: true },
     );
     users.push(user);
@@ -140,7 +153,7 @@ try {
     );
   }
   console.log(
-    `Seeded ${users.length} disabled example identities, ${specs.length} subjects and sample question/assessment data. Provision verified identities securely before use.`,
+    `Seeded ${users.length} ${process.env.SEED_ACTIVATE === 'true' ? 'active' : 'disabled'} example identities, ${specs.length} subjects and sample question/assessment data. Provision verified identities securely before use.`,
   );
 } finally {
   await db.close();

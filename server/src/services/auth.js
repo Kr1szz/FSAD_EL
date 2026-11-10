@@ -29,8 +29,26 @@ export async function authenticateGoogle(credential) {
   user.googleId = info.sub;
   user.lastLoginAt = new Date();
   await user.save();
-  return {
-    user,
-    token: jwt.sign({ sub: user.id }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_TTL || '4h' }),
-  };
+  return { user, token: signSession(user) };
+}
+
+export const signSession = (user) =>
+  jwt.sign({ sub: user.id }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_TTL || '4h' });
+
+/**
+ * Local-development sign-in that skips Google. It is available only when
+ * DEV_LOGIN=true and NODE_ENV is not production, and still requires an
+ * existing, active, approved account.
+ */
+export const devLoginEnabled = () =>
+  process.env.DEV_LOGIN === 'true' && process.env.NODE_ENV !== 'production';
+
+export async function authenticateDev(email) {
+  if (!devLoginEnabled()) throw Object.assign(new Error('Not found'), { status: 404 });
+  const user = await User.findOne({ email: String(email).toLowerCase() });
+  if (!user || !user.isActive || user.approvalStatus !== 'approved')
+    throw Object.assign(new Error('No active account with that email'), { status: 403 });
+  user.lastLoginAt = new Date();
+  await user.save();
+  return { user, token: signSession(user) };
 }

@@ -5,7 +5,7 @@ import { assignmentUpload, storedPath } from '../middleware/upload.js';
 import { Router } from 'express';
 import { z } from 'zod';
 import { authenticate, allow } from '../middleware/auth.js';
-import { authenticateGoogle } from '../services/auth.js';
+import { authenticateGoogle, authenticateDev, devLoginEnabled } from '../services/auth.js';
 import {
   User,
   Department,
@@ -34,10 +34,10 @@ import { parseCSV } from '../utils/csv.js';
 import { finalizeAttempt } from '../services/attempts.js';
 import { notify } from '../services/notifications.js';
 import { transitionAssessment } from '../services/assessment-lifecycle.js';
+import { wrap, send, oid } from '../utils/http.js';
+import dashboardRoutes from './dashboard.js';
 const router = Router();
-const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
-const send = (res, data, status = 200) => res.status(status).json({ ok: true, data });
-const oid = (id) => /^[a-f\d]{24}$/i.test(id);
+router.use(dashboardRoutes);
 const secureShuffle = (values) => {
   const arr = [...values];
   for (let i = arr.length - 1; i > 0; i--) {
@@ -65,12 +65,35 @@ router.post(
     const schema = z.object({ credential: z.string().min(10) });
     const { credential } = schema.parse(req.body);
     const { user, token } = await authenticateGoogle(credential);
-    res.cookie('accessToken', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 4 * 60 * 60 * 1000,
-    });
+    setSessionCookie(res, token);
+    send(res, { user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+  }),
+);
+function setSessionCookie(res, token) {
+  res.cookie('accessToken', token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge: 4 * 60 * 60 * 1000,
+  });
+}
+router.get(
+  '/auth/dev-login',
+  wrap(async (_req, res) => {
+    if (!devLoginEnabled()) return send(res, { enabled: false, users: [] });
+    const users = await User.find({ isActive: true, approvalStatus: 'approved' })
+      .select('name email role usn')
+      .sort({ role: 1, name: 1 })
+      .limit(50);
+    send(res, { enabled: true, users });
+  }),
+);
+router.post(
+  '/auth/dev-login',
+  wrap(async (req, res) => {
+    const { email } = z.object({ email: z.string().email() }).parse(req.body);
+    const { user, token } = await authenticateDev(email);
+    setSessionCookie(res, token);
     send(res, { user: { id: user.id, name: user.name, email: user.email, role: user.role } });
   }),
 );
@@ -317,13 +340,11 @@ router.post(
     const { csv } = z.object({ csv: z.string().min(1).max(950_000) }).parse(req.body);
     const report = await validateUserImport(csv);
     if (report.errors.length)
-      return res
-        .status(400)
-        .json({
-          ok: false,
-          error: 'Import contains invalid records; correct them and preview again',
-          data: { errors: report.errors, total: report.records.length },
-        });
+      return res.status(400).json({
+        ok: false,
+        error: 'Import contains invalid records; correct them and preview again',
+        data: { errors: report.errors, total: report.records.length },
+      });
     const users = await User.insertMany(report.records, { ordered: true });
     await audit(req, 'USERS_IMPORTED', 'User', undefined, { count: users.length });
     send(
