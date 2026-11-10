@@ -21,15 +21,15 @@ export function ThemeProvider({ children }) {
   }, [theme]);
 
   const toggle = useCallback(() => {
-    setTheme((current) => {
-      const next = current === 'dark' ? 'light' : 'dark';
-      try {
-        localStorage.setItem('theme', next);
-      } catch {
-        /* storage unavailable: theme still applies for this session */
-      }
-      return next;
-    });
+    const next = document.documentElement.classList.contains('dark') ? 'light' : 'dark';
+    // Apply before re-render so components reading CSS variables see the new palette.
+    document.documentElement.classList.toggle('dark', next === 'dark');
+    try {
+      localStorage.setItem('theme', next);
+    } catch {
+      /* storage unavailable: theme still applies for this session */
+    }
+    setTheme(next);
   }, []);
 
   return <ThemeContext.Provider value={{ theme, toggle }}>{children}</ThemeContext.Provider>;

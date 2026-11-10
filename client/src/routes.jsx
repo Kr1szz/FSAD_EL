@@ -1,3 +1,5 @@
+import { lazy } from 'react';
+const Dashboard = lazy(() => import('./pages/dashboard/Dashboard.jsx'));
 import * as Legacy from './pages/legacy/LegacyPages.jsx';
 
 const T = ['teacher', 'admin'];
@@ -5,7 +7,7 @@ const A = ['admin'];
 
 /** Routes rendered inside the app shell (sidebar + topbar). */
 export const appRoutes = [
-  { path: '/', element: <Legacy.Dashboard /> },
+  { path: '/', element: <Dashboard /> },
   { path: '/students', element: <Legacy.People role="student" />, roles: A },
   { path: '/teachers', element: <Legacy.People role="teacher" />, roles: A },
   { path: '/structure', element: <Legacy.Structure />, roles: A },
