@@ -137,7 +137,7 @@ The model supports states including `DRAFT`, `SCHEDULED`, `AVAILABLE`, `LIVE`, `
 
 ## Identity, roles, and request security
 
-Google sign-in is not public registration. `POST /api/auth/google` verifies a Google ID token against `GOOGLE_CLIENT_ID`, requires a verified email, checks `ALLOWED_EMAIL_DOMAINS` or `ALLOWED_EMAILS`, and requires a matching active, approved `User` record in MongoDB. The server returns an HTTP-only `accessToken` cookie containing a signed JWT. API authentication reloads the user and rejects disabled or unapproved accounts.
+`POST /api/auth/google` verifies a Google ID token against `GOOGLE_CLIENT_ID`, requires a verified email, and checks `ALLOWED_EMAIL_DOMAINS` or `ALLOWED_EMAILS`. On first sign-in, an allowed email is automatically provisioned as an active student. Admin and teacher roles must still be assigned by an administrator. The server returns an HTTP-only `accessToken` cookie containing a signed JWT. API authentication reloads the user and rejects disabled or unapproved accounts.
 
 Role middleware provides broad access gates (`admin`, `teacher`, `student`); route handlers then apply resource checks such as subject assignment, enrollment, quiz ownership, or room membership. Socket.IO uses the same cookie/JWT identity and authorizes room membership and teacher controls before joining a socket room or changing a quiz state.
 
@@ -196,7 +196,7 @@ The root `dev` script starts the API and Vite client concurrently. Open <http://
 
 ### Provisioning users and sample data
 
-The seed script creates example academic records and `.invalid` example identities; it does not create a usable administrator or a login backdoor. To sign in, an administrator must securely provision a matching `User` document for an allowed Google email and assign its role/subject relationships. Do this with a controlled one-time database operation; do not put real accounts or passwords in the seed script.
+The seed script creates example academic records and `.invalid` example identities; it does not create a usable administrator or a login backdoor. Allowed users are provisioned as students on first Google sign-in. An administrator must assign staff roles and academic relationships through the admin tools or a controlled database operation; do not put real accounts or passwords in the seed script.
 
 Run sample seeding with:
 
