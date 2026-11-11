@@ -675,6 +675,60 @@ for (const [action, allowedStates, nextState] of [
       send(res, a);
     }),
   );
+/** Grade ids a reviewer may see: every grade for admins, grades of taught subjects for teachers. */
+async function reviewableGradeIds(user) {
+  if (user.role === 'admin') return null;
+  const subjects = await Subject.find({ teachers: user._id }).distinct('_id');
+  const assessments = await Assessment.find({ subject: { $in: subjects } }).distinct('_id');
+  return Grade.find({ assessment: { $in: assessments } }).distinct('_id');
+}
+
+router.get(
+  '/grade-reviews',
+  authenticate,
+  allow('teacher', 'admin'),
+  wrap(async (req, res) => {
+    const { status } = z
+      .object({ status: z.enum(['OPEN', 'APPROVED', 'REJECTED', 'RESOLVED', 'ALL']).default('OPEN') })
+      .parse(req.query);
+    const grades = await reviewableGradeIds(req.user);
+    const filter = grades ? { grade: { $in: grades } } : {};
+    if (status === 'RESOLVED') filter.status = { $in: ['APPROVED', 'REJECTED'] };
+    else if (status !== 'ALL') filter.status = status;
+    const reviews = await GradeReviewRequest.find(filter)
+      .sort({ status: -1, createdAt: -1 })
+      .limit(500)
+      .populate('student', 'name usn email')
+      .populate('resolvedBy', 'name')
+      .populate({
+        path: 'grade',
+        select: 'rawMarks maxMarks attempt assessment publishedAt modificationReason',
+        populate: {
+          path: 'assessment',
+          select: 'title subject',
+          populate: { path: 'subject', select: 'code name' },
+        },
+      })
+      .lean();
+    send(res, reviews);
+  }),
+);
+
+router.get(
+  '/grade-reviews/summary',
+  authenticate,
+  allow('teacher', 'admin'),
+  wrap(async (req, res) => {
+    const grades = await reviewableGradeIds(req.user);
+    send(res, {
+      open: await GradeReviewRequest.countDocuments({
+        status: 'OPEN',
+        ...(grades ? { grade: { $in: grades } } : {}),
+      }),
+    });
+  }),
+);
+
 router.patch(
   '/grade-reviews/:id',
   authenticate,
@@ -717,6 +771,12 @@ router.patch(
       });
     }
     await audit(req, 'GRADE_REVIEW_RESOLVED', 'GradeReviewRequest', review._id, { status: b.status });
+    const changed = b.status === 'APPROVED' && b.correctedMarks !== undefined;
+    await notify(req.app, [review.student], {
+      title: b.status === 'APPROVED' ? 'Mark review accepted' : 'Mark review answered',
+      body: `${review.grade.assessment.title}: ${changed ? `your mark is now ${b.correctedMarks}/${review.grade.maxMarks}. ` : ''}${b.response}`,
+      href: `/results/${review.grade.assessment._id}`,
+    });
     send(res, review);
   }),
 );

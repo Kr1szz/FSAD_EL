@@ -11,6 +11,7 @@ const AttemptReview = lazy(() => import('./pages/assessments/AttemptReview.jsx')
 const AttemptResult = lazy(() => import('./pages/results/AttemptResult.jsx'));
 const MyGrades = lazy(() => import('./pages/grades/MyGrades.jsx'));
 const Evaluation = lazy(() => import('./pages/grades/Evaluation.jsx'));
+const Reviews = lazy(() => import('./pages/grades/Reviews.jsx'));
 const QuestionBank = lazy(() => import('./pages/questions/QuestionBank.jsx'));
 const ExamPage = lazy(() => import('./pages/exam/ExamPage.jsx'));
 const ExamRoom = lazy(() => import('./pages/exam/ExamRoom.jsx'));
@@ -47,6 +48,7 @@ export const appRoutes = [
   { path: '/assessments/:id/attempts/:attemptId', element: <AttemptReview />, roles: T },
   { path: '/results/:assessmentId', element: <AttemptResult />, roles: ['student'] },
   { path: '/evaluation', element: <Evaluation />, roles: T },
+  { path: '/reviews', element: <Reviews />, roles: T },
   { path: '/grades', element: <MyGrades />, roles: ['student'] },
   { path: '/questions', element: <QuestionBank />, roles: T },
   { path: '/assignments', element: <Legacy.Assignments /> },
