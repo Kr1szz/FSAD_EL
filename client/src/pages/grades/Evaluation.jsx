@@ -3,7 +3,7 @@ import toast from 'react-hot-toast';
 import { ArrowRight, BarChart3, CheckCheck, ClipboardCheck, Radio, Send, Trophy, Users } from 'lucide-react';
 import { api } from '../../lib/api.js';
 import { useApi } from '../../hooks/useApi.js';
-import { Avatar, Badge, Button, Card, DataTable, EmptyState, PageHeader, ProgressBar, StatCard, StatusBadge, useConfirm } from '../../components/ui/index.js';
+import { Avatar, Badge, Button, Card, DataTable, ExportMenu, EmptyState, PageHeader, ProgressBar, StatCard, StatusBadge, useConfirm } from '../../components/ui/index.js';
 import { fmtDateTime } from '../../lib/format.js';
 
 /** Teacher view: auto-marked results per quiz, with per-student and bulk publishing. */
@@ -52,6 +52,7 @@ export default function Evaluation() {
               <Button icon={Radio} to={`/assessments/${quiz._id}/monitor`}>
                 Quiz report
               </Button>
+              <ExportMenu path={`/assessments/${quiz._id}/results`} />
               <Button variant="primary" icon={CheckCheck} disabled={!pending.length} loading={busy === 'all'} onClick={publishAll}>
                 Publish all{pending.length ? ` (${pending.length})` : ''}
               </Button>

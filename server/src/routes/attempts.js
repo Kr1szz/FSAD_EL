@@ -660,7 +660,10 @@ router.get(
         ].map(([k, v]) => ({ k, v })),
       },
     ];
-    await sendTable(res, format, `${a.subject.code}-${a.title}-results`, sheets);
+    const base = a.title.toLowerCase().startsWith(a.subject.code.toLowerCase())
+      ? a.title
+      : `${a.subject.code}-${a.title}`;
+    await sendTable(res, format, `${base}-results`, sheets);
   }),
 );
 

@@ -9,3 +9,4 @@ export { Tabs } from './Tabs.jsx';
 export { Stepper } from './Stepper.jsx';
 export { PageHeader, Toolbar } from './PageHeader.jsx';
 export { MultiPicker } from './MultiPicker.jsx';
+export { ExportMenu } from './ExportMenu.jsx';

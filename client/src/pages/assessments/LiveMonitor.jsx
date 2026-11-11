@@ -8,7 +8,7 @@ import { getSocket } from '../../lib/socket.js';
 import { useApi } from '../../hooks/useApi.js';
 import { useServerClock } from '../../hooks/useServerClock.js';
 import { useSocketEvent } from '../../hooks/useSocketEvent.js';
-import { Avatar, Badge, Button, Card, CardHeader, Drawer, EmptyState, PageHeader, ProgressBar, StatCard, StatusBadge, Tabs, useConfirm } from '../../components/ui/index.js';
+import { Avatar, Badge, Button, Card, CardHeader, Drawer, EmptyState, ExportMenu, PageHeader, ProgressBar, StatCard, StatusBadge, Tabs, useConfirm } from '../../components/ui/index.js';
 import { PageLoader } from '../../components/layout/PageLoader.jsx';
 import { fmtDuration, fmtTime } from '../../lib/format.js';
 import { EVENT_META, ProctorTimeline, SUBMIT_REASON, eventMeta } from '../../components/domain/ProctorTimeline.jsx';
@@ -242,6 +242,7 @@ export default function LiveMonitor() {
             <Button variant="ghost" icon={ArrowLeft} to="/assessments">
               Back
             </Button>
+            <ExportMenu path={`/assessments/${id}/results`} />
             {a.state === 'LIVE' && (
               <Button icon={Pause} loading={busy === 'pause'} onClick={() => control('pause')}>
                 Pause

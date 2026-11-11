@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Award, BarChart3, ClipboardList, Trophy } from 'lucide-react';
 import { useApi } from '../../hooks/useApi.js';
-import { Button, Card, EmptyState, PageHeader, ScoreRing, SectionTitle, Skeleton, StatCard } from '../../components/ui/index.js';
+import { Button, Card, EmptyState, ExportMenu, PageHeader, ScoreRing, SectionTitle, Skeleton, StatCard } from '../../components/ui/index.js';
 import { hueFor } from '../../components/domain/QuizCard.jsx';
 import { fmtDate } from '../../lib/format.js';
 
@@ -37,7 +37,12 @@ export default function MyGrades() {
 
   return (
     <>
-      <PageHeader eyebrow="Results" title="My grades" description="Published quiz results. Open one to see every answer, the correct option and your teacher's notes." />
+      <PageHeader
+        eyebrow="Results"
+        title="My grades"
+        description="Published quiz results. Open one to see every answer, the correct option and your teacher's notes."
+        actions={grades.length > 0 && <ExportMenu path="/grades/student/export" label="Download" />}
+      />
       <div className="grid gap-4 sm:grid-cols-3">
         <StatCard variant="hero" loading={loading} label="Average" value={stats ? `${stats.avg}%` : '—'} hint={`${grades.length} published result${grades.length === 1 ? '' : 's'}`} icon={BarChart3} />
         <StatCard loading={loading} label="Best score" value={stats ? `${stats.best}%` : '—'} icon={Trophy} tone="success" />

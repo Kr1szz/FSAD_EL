@@ -5,7 +5,7 @@ import { ArrowRight, Atom, Binary, BookOpen, ClipboardCheck, ClipboardList, Cpu,
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useApi } from '../../hooks/useApi.js';
 import { useThemeColors } from '../../hooks/useThemeColors.js';
-import { Button, Card, CardHeader, DataTable, EmptyState, PageHeader, Ring, ScoreRing, SectionTitle, StatCard } from '../../components/ui/index.js';
+import { Button, Card, CardHeader, DataTable, EmptyState, ExportMenu, PageHeader, Ring, ScoreRing, SectionTitle, StatCard } from '../../components/ui/index.js';
 import { QuizCard, hueFor, studentActionFor } from '../../components/domain/QuizCard.jsx';
 import { AssessmentList } from '../../components/domain/AssessmentList.jsx';
 import { SubjectCard } from '../../components/domain/SubjectCard.jsx';
@@ -50,7 +50,7 @@ function AdminDashboard({ assessments }) {
       </div>
       <div className="mt-6 grid gap-6 xl:grid-cols-[1.4fr_1fr]">
         <Card>
-          <CardHeader title="Academic performance" description="Average score of published results" />
+          <CardHeader title="Academic performance" description="Average score of published results" actions={<ExportMenu path="/admin/reports/grades" size="sm" label="Grades" />} />
           <PerformanceChart data={data?.performance || []} />
         </Card>
         <Card>
