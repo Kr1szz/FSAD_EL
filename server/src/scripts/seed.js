@@ -244,10 +244,11 @@ try {
         }
       }
       const quizzes = [
-        { title: `${code} Quiz 1: Units I-II`, units: [1, 2], pick: (list) => list },
+        { title: `${code} Quiz 1: Units I-II`, slot: 'QUIZ1', units: [1, 2], pick: (list) => list },
         // Quiz 2 takes 4 + 3 + 3 questions from Units III, IV and V.
         {
           title: `${code} Quiz 2: Units III-V`,
+          slot: 'QUIZ2',
           units: [3, 4, 5],
           pick: (list, u) => list.slice(0, u === 3 ? 4 : 3),
         },
@@ -274,9 +275,16 @@ try {
               randomizeQuestions: true,
               randomizeOptions: true,
               proctoring: PROCTORING,
+              cieSlot: qz.slot,
             },
           ),
         );
+        // Older drafts get their CIE slot, unless a teacher already gave that slot to another quiz.
+        if (!(await Assessment.exists({ subject: subject._id, cieSlot: qz.slot })))
+          await Assessment.updateOne(
+            { subject: subject._id, title: qz.title, cieSlot: null },
+            { $set: { cieSlot: qz.slot } },
+          );
       }
       // Tentative CIE calendar, staggered by a day per course.
       const plan = [
