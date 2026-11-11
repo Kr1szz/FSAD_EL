@@ -29,6 +29,7 @@
 | 2026-11-11 | UI refresh | QuizBox-inspired design system in #2E9DFF: tokens, hero cards, chips, rings, light sidebar; legacy CSS scoped under `.legacy` | `index.css`, `tailwind.config.js`, `components/ui/` | Build passed; light, dark and 390px screenshots checked | `faf3f13` | — |
 | 2026-11-11 | Results | Per-question result API gated on grade publication, student result page, teacher attempt review, podium, new My grades and Evaluation pages | `routes/attempts.js`, `services/grading.js`, `pages/results/`, `pages/grades/` | 17 server tests, build passed; flows checked against a local seeded database | `43121b6`, `91920ce`, `f44bbc8` | Teacher reply UI for grade reviews (no list endpoint yet) |
 | 2026-11-11 | Student flow | Quiz cards, student home, restyled exam screen and finished screen | `components/domain/QuizCard.jsx`, `pages/dashboard/`, `pages/exam/` | Build passed; exam started, answered and submitted in a headless browser | `b3c3f3a`, `9c7fb5d` | — |
+| 2026-11-11 | Exports, runner, report | CSV / Excel exports for quiz results, own grades and all grades with a formula-injection guard; export menu; `run.sh`; LaTeX EL report (Times 12 pt) with screenshots | `server/src/utils/export.js`, `ExportMenu.jsx`, `run.sh`, `docs/report/` | 20 server tests, build passed; exports downloaded and opened; `./run.sh` started from a clean state; report checked structurally (not compiled: no TeX installed) | `55f7a96`, `06a1534`, `9187d68` | Fill report placeholders and compile on Overleaf or TeX Live |
 
 ## Current external dependencies and limits
 
