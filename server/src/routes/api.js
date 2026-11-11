@@ -53,9 +53,9 @@ router.post(
   wrap(async (req, res) => {
     const schema = z.object({ credential: z.string().min(10) });
     const { credential } = schema.parse(req.body);
-    const { user, token } = await authenticateGoogle(credential);
+    const { user, token, created } = await authenticateGoogle(credential);
     setSessionCookie(res, token);
-    send(res, { user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+    send(res, { user: { id: user.id, name: user.name, email: user.email, role: user.role }, created });
   }),
 );
 function setSessionCookie(res, token) {
@@ -233,8 +233,14 @@ router.patch(
         section: z.string().optional(),
         isActive: z.boolean().optional(),
         approvalStatus: z.enum(['pending', 'approved', 'rejected']).optional(),
+        role: z.enum(['admin', 'teacher', 'student']).optional(),
       })
       .parse(req.body);
+    if (
+      req.params.id === String(req.user._id) &&
+      ((body.role && body.role !== 'admin') || body.isActive === false)
+    )
+      return res.status(400).json({ ok: false, error: 'You cannot remove your own admin access' });
     const user = await User.findByIdAndUpdate(req.params.id, body, { new: true, runValidators: true });
     if (!user) return res.status(404).json({ ok: false, error: 'User not found' });
     await audit(req, 'USER_UPDATED', 'User', user._id, body);
