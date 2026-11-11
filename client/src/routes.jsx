@@ -10,7 +10,19 @@ const QuestionBank = lazy(() => import('./pages/questions/QuestionBank.jsx'));
 const ExamPage = lazy(() => import('./pages/exam/ExamPage.jsx'));
 const ExamRoom = lazy(() => import('./pages/exam/ExamRoom.jsx'));
 const AttemptRedirect = lazy(() => import('./pages/exam/ExamRoom.jsx').then((m) => ({ default: m.AttemptRedirect })));
-import * as Legacy from './pages/legacy/LegacyPages.jsx';
+
+/** Old pages keep their own stylesheet, scoped under `.legacy` and loaded only with them. */
+const legacy = (name) => {
+  const Page = lazy(() => import('./pages/legacy/LegacyPages.jsx').then((m) => ({ default: m[name] })));
+  return function LegacyPage(props) {
+    return (
+      <div className="legacy">
+        <Page {...props} />
+      </div>
+    );
+  };
+};
+const Legacy = Object.fromEntries(['Evaluation', 'Grades', 'Assignments', 'Announcements', 'CalendarPage', 'Notifications', 'Audit', 'SettingsPage'].map((n) => [n, legacy(n)]));
 
 const T = ['teacher', 'admin'];
 const A = ['admin'];
