@@ -5,6 +5,7 @@ const Structure = lazy(() => import('./pages/structure/Structure.jsx'));
 const Subjects = lazy(() => import('./pages/subjects/Subjects.jsx'));
 const Assessments = lazy(() => import('./pages/assessments/Assessments.jsx'));
 const QuizBuilder = lazy(() => import('./pages/assessments/QuizBuilder.jsx'));
+const LiveMonitor = lazy(() => import('./pages/assessments/LiveMonitor.jsx'));
 const QuestionBank = lazy(() => import('./pages/questions/QuestionBank.jsx'));
 const ExamPage = lazy(() => import('./pages/exam/ExamPage.jsx'));
 const ExamRoom = lazy(() => import('./pages/exam/ExamRoom.jsx'));
@@ -24,6 +25,7 @@ export const appRoutes = [
   { path: '/assessments', element: <Assessments /> },
   { path: '/assessments/new', element: <QuizBuilder key="new" />, roles: T },
   { path: '/assessments/:id/edit', element: <QuizBuilder key="edit" />, roles: T },
+  { path: '/assessments/:id/monitor', element: <LiveMonitor />, roles: T },
   { path: '/evaluation', element: <Legacy.Evaluation />, roles: T },
   { path: '/grades', element: <Legacy.Grades />, roles: ['student'] },
   { path: '/questions', element: <QuestionBank />, roles: T },

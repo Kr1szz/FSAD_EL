@@ -438,6 +438,7 @@ router.get(
         endsAt: a.endsAt,
         availabilityMode: a.availabilityMode,
         questionCount: a.questionIds.length,
+        maxMarks: a.maxMarks,
         proctoring: policyOf(a),
       },
       roster,
