@@ -8,9 +8,9 @@ import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
-import rateLimit from 'express-rate-limit';
 import { Server } from 'socket.io';
 import { connectDB } from './config/db.js';
+import { apiLimiter, signInLimiter } from './middleware/rate-limits.js';
 import api from './routes/api.js';
 import { submitExpiredAttempts } from './services/attempts.js';
 import { advanceAssessmentStates } from './services/assessment-schedule.js';
@@ -20,18 +20,38 @@ const app = express();
 const origin = (process.env.CLIENT_ORIGIN || 'http://localhost:5173').split(',');
 app.disable('x-powered-by');
 app.set('trust proxy', process.env.TRUST_PROXY === 'true' ? 1 : false);
-app.use(helmet());
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", 'https://accounts.google.com/gsi/client'],
+        frameSrc: ['https://accounts.google.com/gsi/'],
+        connectSrc: ["'self'", 'ws:', 'wss:', 'https://accounts.google.com/gsi/'],
+        styleSrc: [
+          "'self'",
+          "'unsafe-inline'",
+          'https://fonts.googleapis.com',
+          'https://accounts.google.com/gsi/style',
+        ],
+        fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
+        imgSrc: ["'self'", 'data:', 'blob:', 'https://*.googleusercontent.com'],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
+        frameAncestors: ["'none'"],
+      },
+    },
+    // Google sign-in opens a popup that must be able to post back to this window.
+    crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
+    crossOriginEmbedderPolicy: false,
+  }),
+);
 app.use(cors({ origin, credentials: true, exposedHeaders: ['Content-Disposition'] }));
 app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
-app.use(
-  '/api',
-  rateLimit({ windowMs: 15 * 60_000, limit: 600, standardHeaders: true, legacyHeaders: false }),
-);
-app.use(
-  '/api/auth',
-  rateLimit({ windowMs: 15 * 60_000, limit: 30, standardHeaders: true, legacyHeaders: false }),
-);
+app.use('/api', apiLimiter);
+app.post(['/api/auth/google', '/api/auth/dev-login'], signInLimiter);
 app.get('/api/health', (_req, res) =>
   res.json({ ok: true, data: { service: 'rvce-academic-hub-api', time: new Date().toISOString() } }),
 );
