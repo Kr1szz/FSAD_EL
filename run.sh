@@ -150,6 +150,32 @@ stop_mongo() {
   fi
 }
 
+# Refuses to start when the API or client port is taken, and says by what.
+ensure_ports_free() {
+  local busy=0 port pid state
+  for port in "${PORT:-4000}" 5173; do
+    port_open 127.0.0.1 "$port" || continue
+    busy=1
+    pid="$(ss -ltnpH "sport = :$port" 2>/dev/null | grep -o 'pid=[0-9]*' | head -1 | cut -d= -f2)"
+    if [[ -n "$pid" ]]; then
+      state="$(ps -o stat= -p "$pid" 2>/dev/null | tr -d ' ')"
+      if [[ "$state" == T* ]]; then
+        warn "Port $port is held by a SUSPENDED process (PID $pid), probably an earlier ./run.sh stopped with Ctrl+Z."
+      else
+        warn "Port $port is already in use by PID $pid: $(ps -o args= -p "$pid" 2>/dev/null | cut -c1-80)"
+      fi
+    else
+      warn "Port $port is already in use."
+    fi
+  done
+  if ((busy)); then
+    printf '\n  If it is an earlier run in this terminal: run %sjobs%s, then %skill -9 %%1%s (one per job),\n' "$B" "$R" "$B" "$R"
+    printf '  or %sfg%s and press %sCtrl+C%s. Otherwise stop that process, then run ./run.sh again.\n' "$B" "$R" "$B" "$R"
+    printf '  (Use Ctrl+C, not Ctrl+Z, to stop ./run.sh.)\n\n'
+    die "Ports are busy; not starting a second copy."
+  fi
+}
+
 cleanup() {
   ((STARTED_MONGO)) && stop_mongo
   return 0
@@ -166,12 +192,14 @@ cmd="${1:-dev}"
 case "$cmd" in
   dev | start)
     setup
+    ensure_ports_free
     ensure_mongo
     seed_if_empty
     trap cleanup EXIT INT TERM
     printf '\n%sRVCE Academic Hub%s\n' "$B" "$R"
     printf '  App  %shttp://localhost:5173%s\n' "$BLUE" "$R"
-    printf '  API  %shttp://localhost:%s/api%s\n\n' "$BLUE" "${PORT:-4000}" "$R"
+    printf '  API  %shttp://localhost:%s/api%s\n' "$BLUE" "${PORT:-4000}" "$R"
+    printf '  Stop with Ctrl+C (Ctrl+Z only suspends it and keeps the ports busy)\n\n'
     npm run dev
     ;;
   setup) setup ;;
