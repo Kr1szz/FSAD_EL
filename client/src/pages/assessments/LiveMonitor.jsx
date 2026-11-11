@@ -1,29 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import {
-  Activity,
-  AlertTriangle,
-  ArrowLeft,
-  CheckCircle2,
-  Clock,
-  Copy,
-  EyeOff,
-  History,
-  Keyboard,
-  Maximize,
-  MessageSquare,
-  MousePointerClick,
-  Pause,
-  Play,
-  Plus,
-  Search,
-  Send,
-  ShieldAlert,
-  Square,
-  Users,
-  WifiOff,
-} from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Activity, AlertTriangle, ArrowLeft, ArrowRight, CheckCircle2, Clock, Crown, History, MessageSquare, Pause, Play, Plus, Search, Send, ShieldAlert, Square, Trophy, Users } from 'lucide-react';
 import { api } from '../../lib/api.js';
 import { getSocket } from '../../lib/socket.js';
 import { useApi } from '../../hooks/useApi.js';
@@ -32,23 +11,9 @@ import { useSocketEvent } from '../../hooks/useSocketEvent.js';
 import { Avatar, Badge, Button, Card, CardHeader, Drawer, EmptyState, PageHeader, ProgressBar, StatCard, StatusBadge, Tabs, useConfirm } from '../../components/ui/index.js';
 import { PageLoader } from '../../components/layout/PageLoader.jsx';
 import { fmtDuration, fmtTime } from '../../lib/format.js';
+import { EVENT_META, ProctorTimeline, SUBMIT_REASON, eventMeta } from '../../components/domain/ProctorTimeline.jsx';
 
-const EVENT_META = {
-  TAB_HIDDEN: { icon: EyeOff, label: 'Left the tab' },
-  WINDOW_BLUR: { icon: MousePointerClick, label: 'Window lost focus' },
-  FULLSCREEN_EXIT: { icon: Maximize, label: 'Exited fullscreen' },
-  DUPLICATE_TAB: { icon: Copy, label: 'Opened a second tab' },
-  COPY: { icon: Copy, label: 'Tried to copy' },
-  CUT: { icon: Copy, label: 'Tried to cut' },
-  PASTE: { icon: Copy, label: 'Tried to paste' },
-  CONTEXT_MENU: { icon: MousePointerClick, label: 'Right-clicked' },
-  SHORTCUT: { icon: Keyboard, label: 'Blocked shortcut' },
-  DEVTOOLS: { icon: AlertTriangle, label: 'Possible DevTools' },
-  OFFLINE: { icon: WifiOff, label: 'Was offline' },
-  NAVIGATION: { icon: AlertTriangle, label: 'Tried to leave' },
-};
-const SEVERITY_TONE = { CRITICAL: 'danger', WARNING: 'warn', INFO: 'neutral' };
-const REASON = { PROCTORING_LIMIT: 'Auto-submitted', TEACHER: 'Force-submitted', TIMEOUT: 'Time ran out', ASSESSMENT_ENDED: 'Quiz ended', MANUAL: 'Submitted' };
+const REASON = SUBMIT_REASON;
 const ONLINE_WINDOW_MS = 40_000;
 
 function statusOf(row, now) {
@@ -76,11 +41,11 @@ const STATUS_BADGE = {
 };
 
 function EventLine({ e, name }) {
-  const meta = EVENT_META[e.type] || { icon: Activity, label: e.type };
+  const meta = eventMeta(e.type);
   const Icon = meta.icon;
   return (
-    <li className="flex items-start gap-3 px-4 py-2.5">
-      <span className={`mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full ${e.severity === 'CRITICAL' ? 'bg-danger-soft text-danger' : e.severity === 'WARNING' ? 'bg-warn-soft text-warn' : 'bg-surface-2 text-muted'}`}>
+    <li className="flex items-start gap-3 px-5 py-3">
+      <span className={`mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-xl ${e.severity === 'CRITICAL' ? 'bg-danger-soft text-danger' : e.severity === 'WARNING' ? 'bg-warn-soft text-warn' : 'bg-surface-2 text-muted'}`}>
         <Icon className="h-3.5 w-3.5" />
       </span>
       <div className="min-w-0 flex-1 text-sm">
@@ -94,6 +59,48 @@ function EventLine({ e, name }) {
         </p>
       </div>
     </li>
+  );
+}
+
+const PLACES = [
+  { rank: 2, h: 'h-20', size: 'lg', hue: 'hero-ocean' },
+  { rank: 1, h: 'h-28', size: 'xl', hue: 'hero-sky' },
+  { rank: 3, h: 'h-14', size: 'lg', hue: 'hero-teal' },
+];
+
+/** Top three scorers once the quiz is over (teacher view only). */
+function Podium({ rows, max, assessmentId }) {
+  const ranked = rows
+    .filter((r) => r.attempt?.score != null && r.attempt.state !== 'IN_PROGRESS')
+    .sort((x, y) => y.attempt.score - x.attempt.score || new Date(x.attempt.submittedAt) - new Date(y.attempt.submittedAt))
+    .slice(0, 3);
+  if (!ranked.length) return null;
+  return (
+    <Card className="mt-6 overflow-hidden">
+      <CardHeader title="Top scorers" description="Highest scores, ties broken by earlier submission" actions={<Trophy className="h-5 w-5 text-warn" />} />
+      <div className="grid grid-cols-3 items-end gap-3 px-4 pt-8 sm:gap-6 sm:px-10">
+        {PLACES.map(({ rank, h, size, hue }) => {
+          const r = ranked[rank - 1];
+          if (!r) return <div key={rank} />;
+          return (
+            <Link key={rank} to={`/assessments/${assessmentId}/attempts/${r.attempt.id}`} className="group flex min-w-0 flex-col items-center text-center">
+              <div className="relative">
+                {rank === 1 && <Crown className="absolute -top-6 left-1/2 h-6 w-6 -translate-x-1/2 fill-warn text-warn" />}
+                <Avatar name={r.student.name} size={size} ring className="transition group-hover:scale-105" />
+              </div>
+              <p className="mt-3 w-full truncate font-display text-sm font-semibold">{r.student.name}</p>
+              <p className="font-display text-lg font-bold text-primary-strong tabular">
+                {r.attempt.score}
+                <span className="text-xs font-medium text-muted">/{max}</span>
+              </p>
+              <div className={`card-hero ${hue} mt-3 flex w-full max-w-[8.5rem] justify-center !rounded-b-none !rounded-t-2xl pt-2 !shadow-none ${h}`}>
+                <span className="font-display text-2xl font-bold text-white/90">{rank}</span>
+              </div>
+            </Link>
+          );
+        })}
+      </div>
+    </Card>
   );
 }
 
@@ -255,11 +262,17 @@ export default function LiveMonitor() {
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Writing now" value={(counts.writing || 0) + (counts.offline || 0)} hint={counts.offline ? `${counts.offline} disconnected` : 'All connected'} icon={Activity} tone="success" />
+        {live ? (
+          <StatCard variant="hero" label="Writing now" value={(counts.writing || 0) + (counts.offline || 0)} hint={counts.offline ? `${counts.offline} disconnected` : 'All connected'} icon={Activity} />
+        ) : (
+          <StatCard variant="hero" label="Average score" value={avg != null ? `${avg}/${a.maxMarks ?? 10}` : '—'} hint={`${submittedRows.length} of ${rows.length} submitted`} icon={Trophy} />
+        )}
         <StatCard label="Submitted" value={(counts.submitted || 0) + (counts.forced || 0)} hint={counts.forced ? `${counts.forced} auto/force-submitted` : avg != null ? `Average ${avg}/${a.maxMarks ?? 10}` : undefined} icon={CheckCircle2} />
         <StatCard label="Not started" value={counts['not-started'] || 0} hint={`${rows.length} enrolled`} icon={Users} tone="info" />
         <StatCard label="Flagged students" value={counts.flagged || 0} hint="At least one warning" icon={ShieldAlert} tone="danger" />
       </div>
+
+      {!live && <Podium rows={rows} max={a.maxMarks ?? 10} assessmentId={id} />}
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[1fr_22rem]">
         <Card>
@@ -288,7 +301,7 @@ export default function LiveMonitor() {
                   <th>Status</th>
                   <th className="min-w-[140px]">Progress</th>
                   <th>Warnings</th>
-                  <th>Time left / score</th>
+                  <th className="whitespace-nowrap">{live ? 'Time left' : 'Score'}</th>
                   <th className="text-right">Actions</th>
                 </tr>
               </thead>
@@ -304,7 +317,13 @@ export default function LiveMonitor() {
                         <div className="flex items-center gap-3">
                           <Avatar name={r.student.name} size="sm" />
                           <div className="min-w-0">
-                            <p className="truncate font-medium">{r.student.name}</p>
+                            {at && at.state !== 'IN_PROGRESS' ? (
+                              <Link to={`/assessments/${id}/attempts/${at.id}`} className="truncate font-medium hover:text-primary-strong hover:underline">
+                                {r.student.name}
+                              </Link>
+                            ) : (
+                              <p className="truncate font-medium">{r.student.name}</p>
+                            )}
                             <p className="font-mono text-xs text-muted">{r.student.usn || r.student.email}</p>
                           </div>
                         </div>
@@ -358,9 +377,12 @@ export default function LiveMonitor() {
                             <Button size="sm" variant="ghost" icon={Send} onClick={() => act(r, 'submit')} aria-label="Force submit" title="Force submit" className="!text-danger" />
                           </div>
                         ) : at ? (
-                          <Button size="sm" variant="ghost" icon={History} onClick={() => setTimelineFor(at.id)}>
-                            Timeline
-                          </Button>
+                          <div className="flex justify-end">
+                            <Button size="sm" variant="ghost" icon={History} onClick={() => setTimelineFor(at.id)} aria-label="Timeline" title="Timeline" />
+                            <Button size="sm" variant="ghost" to={`/assessments/${id}/attempts/${at.id}`}>
+                              Review <ArrowRight />
+                            </Button>
+                          </div>
                         ) : null}
                       </td>
                     </tr>
@@ -399,46 +421,25 @@ export default function LiveMonitor() {
         {timelineRow && (
           <>
             <div className="mb-4 grid grid-cols-3 gap-3 text-center">
-              <div className="rounded-lg bg-surface-2/60 p-3">
+              <div className="rounded-2xl bg-surface-2 p-3">
                 <p className="font-display text-xl font-bold">{timelineRow.attempt.violationCount || 0}</p>
                 <p className="text-xs text-muted">warnings</p>
               </div>
-              <div className="rounded-lg bg-surface-2/60 p-3">
+              <div className="rounded-2xl bg-surface-2 p-3">
                 <p className="font-display text-xl font-bold">
                   {timelineRow.attempt.answered}/{timelineRow.attempt.total}
                 </p>
                 <p className="text-xs text-muted">answered</p>
               </div>
-              <div className="rounded-lg bg-surface-2/60 p-3">
+              <div className="rounded-2xl bg-surface-2 p-3">
                 <p className="font-display text-xl font-bold">{timelineRow.attempt.score ?? '—'}</p>
                 <p className="text-xs text-muted">score</p>
               </div>
             </div>
-            <ol className="relative ml-3 border-l border-border">
-              <li className="mb-4 ml-5 text-sm">
-                <span className="absolute -left-1.5 mt-1.5 h-3 w-3 rounded-full bg-primary" />
-                Started <span className="text-muted">{fmtTime(timelineRow.attempt.startedAt)}</span>
-              </li>
-              {(timelineRow.attempt.events || []).map((e, i) => {
-                const meta = EVENT_META[e.type] || { label: e.type };
-                return (
-                  <li key={i} className="mb-4 ml-5 text-sm">
-                    <span className={`absolute -left-1.5 mt-1.5 h-3 w-3 rounded-full ${e.severity === 'CRITICAL' ? 'bg-danger' : e.severity === 'WARNING' ? 'bg-warn' : 'bg-border'}`} />
-                    {meta.label} <Badge tone={SEVERITY_TONE[e.severity]}>{e.severity === 'INFO' ? 'logged' : 'warning'}</Badge>
-                    <p className="text-xs text-muted">
-                      {fmtTime(e.occurredAt)}
-                      {e.details ? ` · ${e.details}` : ''}
-                    </p>
-                  </li>
-                );
-              })}
-              {timelineRow.attempt.submittedAt && (
-                <li className="ml-5 text-sm">
-                  <span className="absolute -left-1.5 mt-1.5 h-3 w-3 rounded-full bg-success" />
-                  {REASON[timelineRow.attempt.submitReason] || 'Submitted'} <span className="text-muted">{fmtTime(timelineRow.attempt.submittedAt)}</span>
-                </li>
-              )}
-            </ol>
+            <ProctorTimeline attempt={timelineRow.attempt} />
+            <Button variant="primary" className="mt-6 w-full" to={`/assessments/${id}/attempts/${timelineRow.attempt.id}`}>
+              Open full review <ArrowRight />
+            </Button>
           </>
         )}
       </Drawer>
