@@ -5,8 +5,15 @@ process.env.JWT_SECRET ||= 'test-secret';
 process.env.ALLOWED_EMAIL_DOMAINS = 'rvce.edu.in';
 process.env.ALLOWED_EMAILS = 'guest@gmail.com';
 
-const { AuditLog, User } = await import('../src/models/index.js');
+const { AuditLog, Enrollment, Subject, User } = await import('../src/models/index.js');
 const { isAllowedEmail, resolveGoogleUser } = await import('../src/services/auth.js');
+
+/** Stubs the enrolment queries so tests never touch a database. */
+const stubEnrolment = (subjects = []) => ({
+  find: mock.method(Subject, 'find', () => ({ select: () => ({ lean: async () => subjects }) })),
+  update: mock.method(Subject, 'updateMany', async () => ({})),
+  bulk: mock.method(Enrollment, 'bulkWrite', async () => ({})),
+});
 
 const fakeUser = (fields) => ({
   id: 'u1',
@@ -64,6 +71,7 @@ test('a missing Google name falls back to the email', async (t) => {
   mock.method(User, 'findOne', async () => null);
   const create = mock.method(User, 'create', async (doc) => fakeUser(doc));
   mock.method(AuditLog, 'create', async () => ({}));
+  stubEnrolment();
   await resolveGoogleUser({ email: 'ravi.kumar_cs@rvce.edu.in', email_verified: true, sub: 'g-2' });
   assert.equal(create.mock.calls[0].arguments[0].name, 'Ravi Kumar Cs');
 });
@@ -107,4 +115,59 @@ test('a concurrent first sign-in reuses the account the other request created', 
   const r = await resolveGoogleUser({ email: 'a@rvce.edu.in', email_verified: true, sub: 'g-4' });
   assert.equal(r.created, false);
   assert.equal(r.user.role, 'student');
+});
+
+test('a new student is enrolled in every auto-enrol subject', async (t) => {
+  t.after(() => mock.restoreAll());
+  mock.method(User, 'findOne', async () => null);
+  mock.method(User, 'create', async (doc) => fakeUser({ ...doc, _id: 'new-student' }));
+  mock.method(AuditLog, 'create', async () => ({}));
+  const s = stubEnrolment([
+    { _id: 'fsad', academicYear: '2026-27' },
+    { _id: 'devops', academicYear: '2026-27' },
+  ]);
+  await resolveGoogleUser({
+    email: 'new.mca25@rvce.edu.in',
+    email_verified: true,
+    sub: 'g-5',
+    name: 'New Student',
+  });
+  assert.deepEqual(s.find.mock.calls[0].arguments[0], { autoEnroll: true, archivedAt: null });
+  assert.deepEqual(s.update.mock.calls[0].arguments, [
+    { _id: { $in: ['fsad', 'devops'] } },
+    { $addToSet: { students: 'new-student' } },
+  ]);
+  const ops = s.bulk.mock.calls[0].arguments[0];
+  assert.equal(ops.length, 2);
+  assert.deepEqual(ops[0].updateOne.filter, { student: 'new-student', subject: 'fsad' });
+  assert.equal(ops[0].updateOne.upsert, true);
+});
+
+test('existing users are not re-enrolled, and an email-derived name is replaced by the Google name', async (t) => {
+  t.after(() => mock.restoreAll());
+  const user = fakeUser({ email: 'maaryamannp.mca25@rvce.edu.in', name: 'Maaryamannp Mca25', role: 'admin' });
+  mock.method(User, 'findOne', async () => user);
+  const s = stubEnrolment([{ _id: 'fsad', academicYear: '2026-27' }]);
+  await resolveGoogleUser({
+    email: 'maaryamannp.mca25@rvce.edu.in',
+    email_verified: true,
+    sub: 'g-6',
+    name: 'Aaryamann P',
+  });
+  assert.equal(user.name, 'Aaryamann P');
+  assert.equal(user.role, 'admin');
+  assert.equal(s.update.mock.callCount(), 0);
+});
+
+test('a real name chosen by an administrator is kept', async (t) => {
+  t.after(() => mock.restoreAll());
+  const user = fakeUser({ email: 'asha.rao@rvce.edu.in', name: 'Dr. Asha Rao', role: 'teacher' });
+  mock.method(User, 'findOne', async () => user);
+  await resolveGoogleUser({
+    email: 'asha.rao@rvce.edu.in',
+    email_verified: true,
+    sub: 'g-7',
+    name: 'Asha R',
+  });
+  assert.equal(user.name, 'Dr. Asha Rao');
 });

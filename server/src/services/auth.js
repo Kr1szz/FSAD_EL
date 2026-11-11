@@ -1,6 +1,7 @@
 import { OAuth2Client } from 'google-auth-library';
 import jwt from 'jsonwebtoken';
 import { AuditLog, User } from '../models/index.js';
+import { enrollInDefaultSubjects } from './enrolment.js';
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const listFromEnv = (name) =>
   (process.env[name] || '')
@@ -17,14 +18,16 @@ export function isAllowedEmail(email) {
   );
 }
 
-const nameFrom = (info, email) =>
-  String(info.name || '').trim() ||
+/** Name derived from an email address, e.g. asha.rao@x -> "Asha Rao". Also used for placeholder accounts. */
+export const nameFromEmail = (email) =>
   email
     .split('@')[0]
     .split(/[._-]+/)
     .filter(Boolean)
     .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
     .join(' ');
+
+const nameFrom = (info, email) => String(info.name || '').trim() || nameFromEmail(email);
 
 /**
  * Signs in a verified Google identity. An allowed email that has no account yet
@@ -59,9 +62,13 @@ export async function resolveGoogleUser(info) {
   if (!user.isActive || user.approvalStatus !== 'approved')
     throw Object.assign(new Error('Account is pending approval or inactive'), { status: 403 });
   if (info.sub && user.googleId !== info.sub) user.googleId = info.sub;
+  // Accounts created by an administrator or the seed start with a name derived from the email.
+  const googleName = String(info.name || '').trim();
+  if (googleName && user.name === nameFromEmail(email)) user.name = googleName;
   user.lastLoginAt = new Date();
   await user.save();
-  if (created)
+  if (created) {
+    await enrollInDefaultSubjects(user).catch((err) => console.error('Auto-enrolment failed', err));
     await AuditLog.create({
       actor: user._id,
       action: 'USER_SELF_REGISTERED',
@@ -69,6 +76,7 @@ export async function resolveGoogleUser(info) {
       entityId: user._id,
       details: { email, role: 'student' },
     }).catch(() => {});
+  }
   return { user, token: signSession(user), created };
 }
 
