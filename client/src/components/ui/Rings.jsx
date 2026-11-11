@@ -61,8 +61,8 @@ export function ScoreRing({ score, max = 10, size = 96, onDark = false }) {
   return (
     <Ring value={score ?? 0} max={max} size={size} stroke={size > 80 ? 9 : 6} color={color} track={onDark ? 'rgb(255 255 255 / .22)' : undefined} label={`Score ${score} out of ${max}`}>
       <span className="text-center leading-none">
-        <span className={`block font-display font-bold tabular ${size > 80 ? 'text-2xl' : 'text-base'}`}>{score ?? '—'}</span>
-        <span className={`block text-[10px] font-semibold uppercase tracking-wider ${onDark ? 'text-white/75' : 'text-muted'}`}>of {max}</span>
+        <span className={`block font-display font-bold tabular ${size > 80 ? 'text-2xl' : size >= 64 ? 'text-lg' : 'text-sm'}`}>{score ?? '—'}</span>
+        {size >= 64 && <span className={`block text-[10px] font-semibold uppercase tracking-wider ${onDark ? 'text-white/75' : 'text-muted'}`}>of {max}</span>}
       </span>
     </Ring>
   );
