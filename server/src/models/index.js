@@ -15,6 +15,8 @@ const userSchema = new Schema(
     isActive: { type: Boolean, default: true },
     approvalStatus: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'approved' },
     lastLoginAt: Date,
+    /** Chosen elective per group, e.g. { D: <subjectId> }. */
+    electives: { type: Map, of: Schema.Types.ObjectId },
   },
   opts,
 );
@@ -41,6 +43,9 @@ const subjectSchema = new Schema(
     syllabus: { type: Schema.Types.Mixed },
     /** New students are enrolled automatically when they first sign in. */
     autoEnroll: { type: Boolean, default: false },
+    /** Students choose one subject per elective group (e.g. "D"). */
+    electiveGroup: { type: String, uppercase: true, trim: true },
+    electiveLockedAt: Date,
     archivedAt: Date,
   },
   opts,

@@ -258,6 +258,7 @@ export const COURSES = [
   },
   {
     code: 'MCA263D1',
+    electiveGroup: 'D',
     name: 'Advanced Internet of Things',
     credits: 3,
     ltp: '3-0-0',
@@ -376,6 +377,7 @@ export const COURSES = [
   },
   {
     code: 'MCA263D2',
+    electiveGroup: 'D',
     name: 'Deep Learning',
     credits: 3,
     ltp: '3-0-0',
@@ -465,6 +467,7 @@ export const COURSES = [
   },
   {
     code: 'MCA263D3',
+    electiveGroup: 'D',
     name: 'Advanced Computer Networks',
     credits: 3,
     ltp: '3-0-0',
@@ -548,6 +551,7 @@ export const COURSES = [
   },
   {
     code: 'MCA263D4',
+    electiveGroup: 'D',
     name: 'Principles of UI/UX Design',
     credits: 3,
     ltp: '3-0-0',

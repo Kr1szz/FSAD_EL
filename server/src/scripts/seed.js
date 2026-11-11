@@ -36,6 +36,7 @@ import { ACADEMIC_YEAR, ADMIN, CIE_THEORY, COURSES, DEPARTMENT, SEMESTER } from 
 import { QUESTIONS } from '../data/mca-sem3-questions.js';
 import { nameFromEmail } from '../services/auth.js';
 import { enrollInDefaultSubjects } from '../services/enrolment.js';
+import { resetUnchosenElectives } from '../services/electives.js';
 
 const KEYS = ['A', 'B', 'C', 'D', 'E', 'F'];
 const PROCTORING = {
@@ -194,7 +195,7 @@ try {
   );
 
   for (const [ci, c] of COURSES.entries()) {
-    const { code, name, credits, quizzes: _q, ...syllabus } = c;
+    const { code, name, credits, quizzes: _q, electiveGroup, ...syllabus } = c;
     const subjectCreated = await upsert(
       Subject,
       { code, academicYear: ACADEMIC_YEAR.label },
@@ -205,7 +206,9 @@ try {
         semester: SEMESTER.number,
         credits,
         syllabus: { ...syllabus, code, name },
-        autoEnroll: true,
+        // Core subjects are automatic; students choose one elective per group.
+        autoEnroll: !electiveGroup,
+        electiveGroup: electiveGroup || null,
       },
     );
     tally('subjects', subjectCreated);
@@ -314,6 +317,8 @@ try {
     );
   }
 
+  // Students enrolled in every elective by the earlier rule are asked to choose instead.
+  const electivesReset = await resetUnchosenElectives();
   // Students who signed in before the subjects existed get enrolled now.
   let enrolled = 0;
   for (const student of await User.find({ role: 'student', isActive: true }).select('_id role')) {
@@ -330,7 +335,9 @@ try {
   console.log(
     `Created: ${counts.subjects || 0} subjects, ${counts.questions || 0} questions, ${counts.quizzes || 0} quiz drafts, ${counts.announcements || 0} announcements, ${counts.calendar || 0} calendar events (existing records left unchanged)`,
   );
-  console.log(`Enrolled ${enrolled} existing student(s) in the ${COURSES.length} semester subjects`);
+  console.log(
+    `Checked ${enrolled} existing student(s): enrolled in the ${COURSES.filter((c) => !c.electiveGroup).length} core subjects; ${electivesReset} asked to choose their elective again`,
+  );
 } finally {
   await db.close();
 }

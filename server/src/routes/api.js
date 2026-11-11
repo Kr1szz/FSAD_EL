@@ -40,11 +40,13 @@ import dashboardRoutes from './dashboard.js';
 import assessmentRoutes from './assessments.js';
 import questionRoutes from './questions.js';
 import attemptRoutes from './attempts.js';
+import electiveRoutes from './electives.js';
 const router = Router();
 router.use(dashboardRoutes);
 router.use(assessmentRoutes);
 router.use(questionRoutes);
 router.use(attemptRoutes);
+router.use(electiveRoutes);
 const getPage = (req) => ({
   page: Math.max(1, Number(req.query.page) || 1),
   limit: Math.min(100, Math.max(1, Number(req.query.limit) || 25)),
