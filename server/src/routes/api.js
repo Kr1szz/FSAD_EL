@@ -715,7 +715,7 @@ router.post(
     await notify(req.app, [g.student], {
       title: 'Grade published',
       body: `Your result for ${g.assessment.title} is available.`,
-      href: '/grades',
+      href: `/results/${g.assessment._id}`,
     });
     send(res, g);
   }),

@@ -2,7 +2,17 @@ import { randomInt } from 'node:crypto';
 import { Router } from 'express';
 import { z } from 'zod';
 import { authenticate, allow } from '../middleware/auth.js';
-import { Assessment, Attempt, Question, Room, Subject, User } from '../models/index.js';
+import {
+  Assessment,
+  Attempt,
+  Grade,
+  GradeReviewRequest,
+  Question,
+  Room,
+  Subject,
+  User,
+} from '../models/index.js';
+import { reviewAnswers } from '../services/grading.js';
 import { audit } from '../utils/audit.js';
 import { finalizeAttempt } from '../services/attempts.js';
 import { EVENT_TYPES, policyOf, recordViolation } from '../services/proctoring.js';
@@ -222,13 +232,79 @@ router.get(
     }
     const at = await loadAttemptForTeacher(req.params.id, req.user);
     await at.populate('student', 'name usn email');
-    const questions = await Question.find({ _id: { $in: at.questionOrder } }).lean();
-    const byId = new Map(questions.map((q) => [String(q._id), q]));
+    const found = await Question.find({ _id: { $in: at.questionOrder } }).lean();
+    const byId = new Map(found.map((q) => [String(q._id), q]));
+    const questions = at.questionOrder.map((id) => byId.get(String(id))).filter(Boolean);
     send(res, {
       attempt: at,
       student: at.student,
-      questions: at.questionOrder.map((id) => byId.get(String(id))).filter(Boolean),
+      questions,
+      items: reviewAnswers(questions, at.answers),
       policy: policyOf(at.assessment),
+    });
+  }),
+);
+
+/**
+ * A student's graded attempt with correct answers. Available only after the
+ * teacher publishes the grade, so answers never leak while others can still write.
+ */
+router.get(
+  '/assessments/:id/my-result',
+  authenticate,
+  allow('student'),
+  wrap(async (req, res) => {
+    if (!oid(req.params.id)) throw httpError(400, 'Invalid id');
+    const grade = await Grade.findOne({
+      assessment: req.params.id,
+      student: req.user._id,
+      publishedAt: { $ne: null },
+    }).lean();
+    if (!grade?.attempt) throw httpError(404, 'This result has not been published yet');
+    const [assessment, at, attemptsUsed, review] = await Promise.all([
+      Assessment.findById(req.params.id)
+        .select('title maxMarks durationMinutes attemptsAllowed subject')
+        .populate('subject', 'name code')
+        .lean(),
+      Attempt.findOne({ _id: grade.attempt, student: req.user._id }).lean(),
+      Attempt.countDocuments({ assessment: req.params.id, student: req.user._id }),
+      GradeReviewRequest.findOne({ grade: grade._id }).sort({ createdAt: -1 }).lean(),
+    ]);
+    if (!assessment || !at) throw httpError(404, 'Result not found');
+    const questions = await Question.find({ _id: { $in: at.questionOrder } }).lean();
+    const byId = new Map(questions.map((q) => [String(q._id), q]));
+    send(res, {
+      assessment: {
+        id: String(assessment._id),
+        title: assessment.title,
+        subject: assessment.subject,
+        maxMarks: assessment.maxMarks,
+        durationMinutes: assessment.durationMinutes,
+      },
+      grade: {
+        id: String(grade._id),
+        rawMarks: grade.rawMarks,
+        maxMarks: grade.maxMarks,
+        feedback: grade.feedback,
+        publishedAt: grade.publishedAt,
+      },
+      attempt: {
+        id: String(at._id),
+        attemptNumber: at.attemptNumber,
+        attemptsUsed,
+        startedAt: at.startedAt,
+        submittedAt: at.submittedAt,
+        submitReason: at.submitReason,
+        violationCount: at.violationCount || 0,
+        score: at.score,
+      },
+      review: review && {
+        status: review.status,
+        message: review.message,
+        response: review.response,
+        createdAt: review.createdAt,
+      },
+      items: reviewAnswers(at.questionOrder.map((id) => byId.get(String(id))).filter(Boolean), at.answers),
     });
   }),
 );
