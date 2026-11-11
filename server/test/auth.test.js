@@ -145,7 +145,7 @@ test('a new student is enrolled in every auto-enrol subject', async (t) => {
 
 test('existing users are not re-enrolled, and an email-derived name is replaced by the Google name', async (t) => {
   t.after(() => mock.restoreAll());
-  const user = fakeUser({ email: 'maaryamannp.mca25@rvce.edu.in', name: 'Maaryamannp Mca25', role: 'admin' });
+  const user = fakeUser({ email: 'maaryamannp.mca25@rvce.edu.in', name: 'Maaryamannp', role: 'admin' });
   mock.method(User, 'findOne', async () => user);
   const s = stubEnrolment([{ _id: 'fsad', academicYear: '2026-27' }]);
   await resolveGoogleUser({
@@ -170,4 +170,11 @@ test('a real name chosen by an administrator is kept', async (t) => {
     name: 'Asha R',
   });
   assert.equal(user.name, 'Dr. Asha Rao');
+});
+
+test('email-derived names skip batch codes', async () => {
+  const { nameFromEmail } = await import('../src/services/auth.js');
+  assert.equal(nameFromEmail('maaryamannp.mca25@rvce.edu.in'), 'Maaryamannp');
+  assert.equal(nameFromEmail('asha.rao.cs23@rvce.edu.in'), 'Asha Rao');
+  assert.equal(nameFromEmail('1rv25mc001@rvce.edu.in'), '1rv25mc001');
 });

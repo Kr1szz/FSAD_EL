@@ -18,14 +18,16 @@ export function isAllowedEmail(email) {
   );
 }
 
-/** Name derived from an email address, e.g. asha.rao@x -> "Asha Rao". Also used for placeholder accounts. */
-export const nameFromEmail = (email) =>
-  email
+/** Name derived from an email address, e.g. asha.rao.mca25@x -> "Asha Rao". Also used for placeholder accounts. */
+export const nameFromEmail = (email) => {
+  const parts = email
     .split('@')[0]
     .split(/[._-]+/)
-    .filter(Boolean)
-    .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
-    .join(' ');
+    .filter(Boolean);
+  // Drop batch/roll segments such as "mca25" when there is a name part left.
+  const named = parts.filter((p) => !/\d/.test(p));
+  return (named.length ? named : parts).map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+};
 
 const nameFrom = (info, email) => String(info.name || '').trim() || nameFromEmail(email);
 
