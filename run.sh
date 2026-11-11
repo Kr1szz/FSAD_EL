@@ -4,7 +4,8 @@
 #   ./run.sh            set up (first run), start MongoDB, seed if empty, run API + client
 #   ./run.sh setup      create .env and install dependencies only
 #   ./run.sh seed       load the MCA scheme: subjects, syllabus, questions, quiz drafts
-#   ./run.sh test       run the server test suite
+#   ./run.sh test       run the server and client unit tests
+#   ./run.sh e2e        run the end-to-end browser tests on a throwaway database
 #   ./run.sh build      production build of the client (client/dist)
 #   ./run.sh stop       stop the MongoDB started by this script
 #   ./run.sh help       show this help
@@ -176,6 +177,30 @@ ensure_ports_free() {
   fi
 }
 
+# End-to-end tests: a temporary local MongoDB on port 27018 (never the database in .env).
+run_e2e() {
+  local port=27018 started=0 container=""
+  if ! port_open 127.0.0.1 "$port"; then
+    if command -v mongod >/dev/null 2>&1; then
+      mkdir -p "$DATA_DIR/e2e-mongo"
+      mongod --dbpath "$DATA_DIR/e2e-mongo" --port "$port" --bind_ip 127.0.0.1 --fork --logpath "$DATA_DIR/e2e-mongod.log" >/dev/null
+      started=1
+    elif command -v docker >/dev/null 2>&1; then
+      container="$(docker run -d --rm -p "127.0.0.1:$port:27017" mongo:7)"
+    else
+      die "End-to-end tests need mongod or docker."
+    fi
+    for _ in $(seq 1 30); do port_open 127.0.0.1 "$port" && break; sleep 1; done
+  fi
+  ls "$HOME/.cache/ms-playwright" 2>/dev/null | grep -q '^chromium' || npx playwright install chromium
+  info "Running end-to-end tests (database rvce_e2e on port $port)"
+  local status=0
+  MONGODB_URI="mongodb://127.0.0.1:$port/" MONGODB_DB=rvce_e2e npm run test:e2e || status=$?
+  ((started)) && mongod --dbpath "$DATA_DIR/e2e-mongo" --shutdown >/dev/null 2>&1
+  [[ -n "$container" ]] && docker stop "$container" >/dev/null
+  return "$status"
+}
+
 cleanup() {
   ((STARTED_MONGO)) && stop_mongo
   return 0
@@ -213,6 +238,12 @@ case "$cmd" in
     check_tools
     ensure_deps
     npm test
+    npm run test:client
+    ;;
+  e2e)
+    check_tools
+    ensure_deps
+    run_e2e
     ;;
   build)
     check_tools

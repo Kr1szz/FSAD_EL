@@ -62,7 +62,7 @@ app.use('/api', (_req, res) => res.status(404).json({ ok: false, error: 'Not fou
 // In production the API also serves the built client (one origin: no CORS or cross-site cookies).
 const clientDist = resolve(projectRoot, 'client/dist');
 if (
-  process.env.NODE_ENV === 'production' &&
+  (process.env.NODE_ENV === 'production' || process.env.SERVE_CLIENT === 'true') &&
   process.env.SERVE_CLIENT !== 'false' &&
   existsSync(resolve(clientDist, 'index.html'))
 ) {

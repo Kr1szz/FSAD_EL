@@ -229,6 +229,16 @@ The root `dev` script starts the API and Vite client concurrently. Open <http://
 
 When `MONGODB_URI` does not name a database (common for Atlas URIs ending in `/`), the app uses `rvce_academic_hub`, or `MONGODB_DB` if set.
 
+## Testing
+
+| Command | What runs |
+|---|---|
+| `npm test` | Server unit and HTTP tests: scoring, CIE rules, proctoring, exports, electives, sign-in, rate limits, and a route-guard test that checks every API route needs a session |
+| `npm run test:client` | Client unit tests (Vitest) |
+| `./run.sh e2e` | Playwright end-to-end tests in Chromium against a throwaway local MongoDB (port 27018, database `rvce_e2e`): elective choice, a proctored quiz, publishing and Excel export, a mark review, and CIE entry and publishing |
+
+CI (`.github/workflows/ci.yml`) runs lint, both unit suites, the production build and the end-to-end tests on every push and pull request, and uploads the Playwright report when a test fails.
+
 ## Developer commands
 
 Run at repository root:
