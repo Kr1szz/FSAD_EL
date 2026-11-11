@@ -78,7 +78,9 @@ The repository is one npm workspace with two deployable applications. The server
 │   ├── API.md                      Endpoint overview
 │   ├── DEPLOYMENT.md               Local and deployment notes
 │   └── DEVELOPMENT_PLAN.md         Delivery plan and architecture notes
-├── docker-compose.yml              MongoDB, API and static client services
+├── Dockerfile                      One image: builds the client, runs the API (serves the client)
+├── render.yaml                     Render blueprint (one web service)
+├── docker-compose.yml              MongoDB + the app image
 ├── .env.example                    Environment variable template
 └── package.json                    npm workspace scripts
 ```
@@ -215,7 +217,7 @@ docker compose up -d mongo
 npm run dev
 ```
 
-The root `dev` script starts the API and Vite client concurrently. Open <http://localhost:5173>; check API health at <http://localhost:4000/api/health>. For a full Compose deployment, use `docker compose up --build` and the Compose-provided MongoDB URI.
+The root `dev` script starts the API and Vite client concurrently. Open <http://localhost:5173>; check API health at <http://localhost:4000/api/health>. For a production-style run, use `docker compose up --build` (app on <http://localhost:4000>) or see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for Render.
 
 ### Users, roles and academic data
 
@@ -254,7 +256,7 @@ The HTTP tests bind to loopback. In restricted sandboxes, the test process may r
 - Set a strong `JWT_SECRET`, production OAuth client IDs, production allowed origin, approved email domain, and `TRUST_PROXY` only when the app is behind a correctly configured trusted proxy.
 - Provision at least one administrator securely before institutional use. Anyone with a verified address on an allowed domain can sign in and becomes a student, so keep `ALLOWED_EMAIL_DOMAINS` and `ALLOWED_EMAILS` limited to institutional addresses.
 - Local assignment upload storage is not a shared or automatically durable production storage layer.
-- `docker-compose.yml` defines MongoDB, API, and client services. The application container builds have previously failed in the local Docker/npm environment during dependency installation; host lint, tests, and client builds are the verified development checks. See [DEVELOPMENT_LOG.md](DEVELOPMENT_LOG.md) for current verification history.
+- Production runs as one service: the API serves the built client from the same origin. Deploy on Render with `render.yaml`, or anywhere with the `Dockerfile` / `docker-compose.yml`. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 - This is an actively developed application. Review role authorization, data retention, backups, privacy requirements, accessibility, and institutional policies before using real student data.
 
 ## Making a code change

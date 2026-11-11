@@ -4,6 +4,7 @@ import { dirname, resolve } from 'node:path';
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 dotenv.config({ path: resolve(projectRoot, '.env') });
 import http from 'node:http';
+import { existsSync } from 'node:fs';
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
@@ -56,6 +57,25 @@ app.get('/api/health', (_req, res) =>
   res.json({ ok: true, data: { service: 'rvce-academic-hub-api', time: new Date().toISOString() } }),
 );
 app.use('/api', api);
+app.use('/api', (_req, res) => res.status(404).json({ ok: false, error: 'Not found' }));
+
+// In production the API also serves the built client (one origin: no CORS or cross-site cookies).
+const clientDist = resolve(projectRoot, 'client/dist');
+if (
+  process.env.NODE_ENV === 'production' &&
+  process.env.SERVE_CLIENT !== 'false' &&
+  existsSync(resolve(clientDist, 'index.html'))
+) {
+  app.use(
+    '/assets',
+    express.static(resolve(clientDist, 'assets'), { immutable: true, maxAge: '1y', index: false }),
+  );
+  app.use(express.static(clientDist, { index: false, maxAge: '1h' }));
+  app.get(/^\/(?!api\/|socket\.io\/).*/, (_req, res) => {
+    res.set('Cache-Control', 'no-cache');
+    res.sendFile(resolve(clientDist, 'index.html'));
+  });
+}
 app.use((err, _req, res, _next) => {
   if (err?.name === 'MulterError')
     return res.status(400).json({
