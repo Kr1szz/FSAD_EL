@@ -9,8 +9,8 @@
 #   ./run.sh stop       stop the MongoDB started by this script
 #   ./run.sh help       show this help
 #
-# Local development only: the generated .env enables the sign-in picker
-# (DEV_LOGIN=true), which is ignored when NODE_ENV=production.
+# The generated .env is for local development; add your Google OAuth client ID
+# to sign in. The sign-in picker (DEV_LOGIN=true) stays off unless you enable it.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -49,10 +49,9 @@ ensure_env() {
   sed \
     -e "s|^JWT_SECRET=.*|JWT_SECRET=$(random_secret)|" \
     -e "s|^MONGODB_URI=.*|MONGODB_URI=mongodb://127.0.0.1:27017/rvce_academic_hub|" \
-    -e "s|^DEV_LOGIN=.*|DEV_LOGIN=true|" \
     .env.example >.env
-  ok ".env created with a random JWT secret, local MongoDB and the dev sign-in picker"
-  warn "DEV_LOGIN=true lets anyone on this machine sign in as a sample user. Keep it local."
+  ok ".env created with a random JWT secret and a local MongoDB"
+  warn "Set GOOGLE_CLIENT_ID and VITE_GOOGLE_CLIENT_ID in .env to enable Google sign-in."
 }
 
 load_env() {
