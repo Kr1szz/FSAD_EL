@@ -26,7 +26,9 @@ app.use(
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", 'https://accounts.google.com/gsi/client'],
+        // 'wasm-unsafe-eval' lets the self-hosted OCR engine (tesseract.js, pdf.js) compile WebAssembly.
+        scriptSrc: ["'self'", "'wasm-unsafe-eval'", 'https://accounts.google.com/gsi/client'],
+        workerSrc: ["'self'"],
         frameSrc: ['https://accounts.google.com/gsi/'],
         connectSrc: ["'self'", 'ws:', 'wss:', 'https://accounts.google.com/gsi/'],
         styleSrc: [

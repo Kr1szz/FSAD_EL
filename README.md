@@ -143,6 +143,7 @@ MongoDB is the source of truth. Subject documents also contain teacher and stude
 ### Creating a quiz
 
 1. A teacher creates questions under a subject. The teacher must be allocated to that subject. An MCQ needs at least two uniquely keyed, non-empty options and a correct option key. A fill-in question needs a non-empty accepted answer.
+   Questions can also be imported from a question paper: **Question bank → Import paper** accepts a PDF (up to 10 pages) or a photo/scan. The paper is read entirely in the browser: a PDF's text layer is used directly, and scanned pages and images go through Tesseract OCR. The tesseract worker, WASM core and English model, and the pdf.js worker, fonts and CMaps, are served from the app's own origin under `/ocr/` (copied by `vite-plugin-static-copy`), so the same-origin CSP only adds `'wasm-unsafe-eval'` and `worker-src 'self'`. `client/src/lib/paper-parser.js` turns the text into drafts. It recognises numbered questions and sub-parts, lettered options, marks annotations, blanks and answer keys. The teacher marks the answers, fixes misreads or removes long-answer questions, then imports them all through `POST /questions/bulk`.
 2. The teacher creates a quiz with at least one question, a title, duration, availability mode, and optional schedule. The server checks teacher allocation, question ownership by subject, archived status, unique question IDs, and supported types.
 3. The server sums the selected question marks. It accepts the quiz only when the sum is exactly 10 and `maxMarks` is 10. The client shows the running sum and disables submission until it equals 10.
 4. The quiz starts as scheduled or draft depending on its availability mode. Publishing makes a scheduled quiz available at its configured time, makes an instant quiz available immediately, or prepares a room-code quiz.
@@ -235,7 +236,7 @@ When `MONGODB_URI` does not name a database (common for Atlas URIs ending in `/`
 |---|---|
 | `npm test` | Server unit and HTTP tests: scoring, CIE rules, proctoring, exports, electives, sign-in, rate limits, and a route-guard test that checks every API route needs a session |
 | `npm run test:client` | Client unit tests (Vitest) |
-| `./run.sh e2e` | Playwright end-to-end tests in Chromium against a throwaway local MongoDB (port 27018, database `rvce_e2e`): elective choice, a proctored quiz, publishing and Excel export, a mark review, and CIE entry and publishing |
+| `./run.sh e2e` | Playwright end-to-end tests in Chromium against a throwaway local MongoDB (port 27018, database `rvce_e2e`): elective choice, a proctored quiz, publishing and Excel export, a mark review, CIE entry and publishing, and question-paper import from a photo, a text PDF and a scanned PDF |
 
 CI (`.github/workflows/ci.yml`) runs lint, both unit suites, the production build and the end-to-end tests on every push and pull request, and uploads the Playwright report when a test fails.
 
@@ -265,6 +266,7 @@ The HTTP tests bind to loopback. In restricted sandboxes, the test process may r
 
 - Set a strong `JWT_SECRET`, production OAuth client IDs, production allowed origin, approved email domain, and `TRUST_PROXY` only when the app is behind a correctly configured trusted proxy.
 - Provision at least one administrator securely before institutional use. Anyone with a verified address on an allowed domain can sign in and becomes a student, so keep `ALLOWED_EMAIL_DOMAINS` and `ALLOWED_EMAILS` limited to institutional addresses.
+- Question-paper OCR is English-only and works best on printed, flat, well-lit pages. Handwriting, multi-column layouts, maths notation and code are often misread, which is why every draft is reviewed before import.
 - Local assignment upload storage is not a shared or automatically durable production storage layer.
 - Production runs as one service: the API serves the built client from the same origin. Deploy on Render with `render.yaml`, or anywhere with the `Dockerfile` / `docker-compose.yml`. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 - This is an actively developed application. Review role authorization, data retention, backups, privacy requirements, accessibility, and institutional policies before using real student data.
